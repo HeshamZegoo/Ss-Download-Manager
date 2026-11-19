@@ -1,0 +1,11 @@
+{
+  "manifest_version": 2,
+  "name": "Ss Download Manager Integration",
+  "version": "1.0.0",
+  "description": "Send browser downloads and links to Ss Download Manager.",
+  "permissions": ["contextMenus", "downloads", "nativeMessaging", "notifications", "https://*/*", "http://*/*"],
+  "background": {"scripts": ["background.js"]},
+  "browser_specific_settings": {
+    "gecko": {"id": "ss-download-manager@heshamzegoo"}
+  }
+}
