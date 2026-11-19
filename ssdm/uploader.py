@@ -75,6 +75,8 @@ class UploadJob:
                             self.progress(sent, total, speed)
                             last_time, last_sent = now, sent
                         yield chunk
+                if self._cancel.is_set():
+                    raise UploadError("Upload cancelled")
 
             headers = dict(self.headers)
             headers.setdefault("Content-Length", str(total))
