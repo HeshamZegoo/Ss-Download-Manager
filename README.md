@@ -57,7 +57,7 @@ Firefox uses the fixed extension ID `ss-download-manager@heshamzegoo`; the insta
 python -m unittest discover -s tests -v
 ```
 
-GitHub Actions currently runs validation only. Windows EXE packaging is deliberately deferred until the requested feature set is implemented and tested.
+On pushes to `main` and manual workflow runs, GitHub Actions first validates the source and then builds the Windows desktop EXE, native-messaging host, and browser extension ZIPs. Download the `Ss-Download-Manager-Windows` artifact from the workflow run; artifacts are retained for 30 days.
 
 ## Limitations
 
