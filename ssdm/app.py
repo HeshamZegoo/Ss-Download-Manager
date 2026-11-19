@@ -188,11 +188,14 @@ class TorrentWindow(QDialog):
         add_row.addWidget(pause)
         add_row.addWidget(resume)
         add_row.addWidget(remove)
+        limits = QPushButton("Speed / queue limits")
+        limits.clicked.connect(self.configure_limits)
+        add_row.addWidget(limits)
         root.addLayout(add_row)
-        self.table = QTableWidget(0, 7)
-        self.table.setHorizontalHeaderLabels(["Torrent", "Progress", "Download", "Upload", "Seeds", "Peers", "State"])
+        self.table = QTableWidget(0, 8)
+        self.table.setHorizontalHeaderLabels(["Torrent", "Progress", "Download", "Upload", "ETA", "Seeds", "Peers", "State"])
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for col in range(1, 7):
+        for col in range(1, 8):
             self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         root.addWidget(self.table, 1)
@@ -233,10 +236,49 @@ class TorrentWindow(QDialog):
                 item["name"], f'{item["progress"]:.1f}%',
                 f'{item["download_rate"] / 1024:.1f} KB/s',
                 f'{item["upload_rate"] / 1024:.1f} KB/s',
+                self.format_eta(item.get("eta_seconds")),
                 str(item["seeds"]), str(item["peers"]), item["state"],
             ]
             for col, value in enumerate(values):
                 self.table.setItem(row, col, QTableWidgetItem(value))
+
+    @staticmethod
+    def format_eta(seconds):
+        if seconds is None:
+            return "—"
+        seconds = max(0, int(seconds))
+        hours, remainder = divmod(seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours}h {minutes}m"
+        if minutes:
+            return f"{minutes}m {seconds}s"
+        return f"{seconds}s"
+
+    def configure_limits(self):
+        active, ok = QInputDialog.getInt(
+            self, "Torrent queue", "Maximum active torrent downloads:",
+            self.manager.limits["max_active"], 1, 64, 1
+        )
+        if not ok:
+            return
+        down, ok = QInputDialog.getInt(
+            self, "Torrent download limit", "Download limit in KiB/s (0 = unlimited):",
+            self.manager.limits["download_kib"], 0, 1048576, 128
+        )
+        if not ok:
+            return
+        up, ok = QInputDialog.getInt(
+            self, "Torrent upload limit", "Upload limit in KiB/s (0 = unlimited):",
+            self.manager.limits["upload_kib"], 0, 1048576, 128
+        )
+        if not ok:
+            return
+        self.manager.set_limits(active, down, up)
+        self.status.setText(
+            f"Queue: {active} active · Download: {down or 'Unlimited'} KiB/s · "
+            f"Upload: {up or 'Unlimited'} KiB/s"
+        )
 
     def show_error(self, message):
         self.status.setText(message[:300])
@@ -357,9 +399,20 @@ class MainWindow(QMainWindow):
         self.signals.video_failed.connect(self.on_video_failed)
         self.store = data_dir() / "downloads.json"
         self._load()
-        self.torrent_manager = TorrentManager(data_dir(), self)
+        self.torrent_manager = None
+        self.torrent_error = ""
         self.torrent_window = None
-        QApplication.instance().aboutToQuit.connect(self.torrent_manager.shutdown)
+        try:
+            self.torrent_manager = TorrentManager(data_dir(), self)
+            self.torrent_manager.set_limits(
+                self.settings.value("torrent_max_active", 3, type=int),
+                self.settings.value("torrent_download_limit_kib", 0, type=int),
+                self.settings.value("torrent_upload_limit_kib", 0, type=int),
+            )
+            QApplication.instance().aboutToQuit.connect(self.torrent_manager.shutdown)
+        except Exception as exc:
+            self.torrent_error = str(exc)
+            self.torrent_manager = None
 
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(["File name", "Category", "Status", "Progress", "Downloaded", "Speed", "Location"])
@@ -505,6 +558,13 @@ class MainWindow(QMainWindow):
         self._show_standalone_grabber("")
 
     def open_torrent_manager(self):
+        if self.torrent_manager is None:
+            QMessageBox.warning(
+                self, "Torrent Manager unavailable",
+                "The torrent engine could not be started. HTTP/HTTPS downloads will continue to work.\n\n"
+                + (self.torrent_error or "libtorrent is unavailable.")
+            )
+            return
         if self.torrent_window is None:
             self.torrent_window = TorrentWindow(self.torrent_manager, self.default_download_dir, self)
             self.torrent_window.finished.connect(lambda _result: setattr(self, "torrent_window", None))
