@@ -590,7 +590,7 @@ class MainWindow(QMainWindow):
                 return
         else:
             if parsed.scheme != protocol.lower() or not parsed.hostname or not parsed.path:
-                QMessageBox.warning(self, "Invalid destination", f"Use {protocol.toLowerCase()}://username@host:21/remote/path")
+                QMessageBox.warning(self, "Invalid destination", f"Use {protocol.lower()}://username@host:21/remote/path")
                 return
             password, ok = QInputDialog.getText(
                 self, f"{protocol} authentication", "Password (not saved):",
