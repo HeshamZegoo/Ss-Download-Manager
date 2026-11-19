@@ -208,6 +208,10 @@ class MainWindow(QMainWindow):
             record.setdefault("category", _category(record.get("name", "")))
             if record.get("status") == "Downloading":
                 record["status"] = "Paused"
+            elif record.get("transfer_type") == "upload" and record.get("status") == "Uploading":
+                record["status"] = "Interrupted"
+                record["speed"] = 0
+                record["error"] = "The application closed before this upload finished; restart it manually."
 
     def _save(self):
         self.store.parent.mkdir(parents=True, exist_ok=True)
