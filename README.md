@@ -15,7 +15,6 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
-- Real HTTP(S) PUT, SFTP, FTP, and explicit FTPS uploads with progress reporting and cancellation. SFTP and FTP resume from an existing remote partial file when the server supports the required operations; HTTP PUT is not resumable unless the remote service implements a resumable protocol.
 - Video grabber for supported sites using yt-dlp, with progress reporting and cancellation.
 - No application-imposed transfer speed cap by default.
 
@@ -60,7 +59,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- A resumable HTTP upload mode for servers implementing the tus protocol, richer upload queue controls, and polished settings/preferences.
+- Resumable HTTP uploads for servers implementing the tus protocol, queue reordering for uploads, and polished theme/preferences controls.
 
 ## Limitations
 
