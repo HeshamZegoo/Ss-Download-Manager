@@ -7,7 +7,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 
 ## Implemented in the current source
 
-- Native PySide6 desktop interface.
+- Original HTML/CSS desktop interface hosted in Qt WebEngine, with Python download engine integration.
 - Real HTTP/HTTPS downloads with pause/resume; segmented multi-connection downloads when the server supports byte ranges, with a safe single-stream fallback.
 - Persistent download history and retained partial download files.
 - Per-download progress, speed, status, and search.
@@ -36,23 +36,15 @@ python main.py
 
 Choose **Upload file**, select a local file, then choose HTTP PUT, TUS resumable, SFTP, FTP, or FTPS. HTTP PUT requires a destination URL that accepts PUT. TUS requires a server endpoint implementing the tus 1.0 protocol; its session URL is stored in the local transfer history to support restart recovery. Treat that URL as sensitive because some TUS servers use it as a capability to continue the upload. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
 
-## Browser integration (source preview)
+## Windows setup
 
-The repository includes Chromium (Chrome, Edge, Brave) and Firefox extension source under `browser/`. The browser integration is developed by HeshamZegoo. The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. They communicate through the native-messaging host; the desktop app polls its local inbox and adds validated HTTP(S) URLs to the queue. This avoids a local HTTP listener.
+The release artifact includes `Ss-Download-Manager-Setup.exe`. Run it once: it installs the desktop app, native messaging host, browser extension files, Start Menu shortcut, optional desktop shortcut, and registers the native bridge for Chrome, Edge, Brave, and Firefox.
 
-The native host executable is produced separately during final packaging:
+**One browser-security step remains:** Chromium browsers require the user to enable Developer mode and click **Load unpacked**, then select the installed `browser\\chromium` folder. Firefox requires **Load Temporary Add-on** and selecting `browser\\firefox\\manifest.json`; temporary Firefox add-ons are removed when Firefox closes. Permanent Firefox distribution requires Mozilla signing. This confirmation is enforced by browser security; a normal desktop installer cannot silently bypass it. The installer writes exact instructions to `Browser-Setup.txt`.
 
-```powershell
-.\tools\build-native-host.ps1
-```
+The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. The native host sends validated HTTP(S) URLs to the desktop application's local inbox.
 
-Copy `dist\ssdm-native-host.exe` into the application install directory. To create ZIP packages for distribution, run `\.\tools\package-browser-extensions.ps1`. Load the matching extension directory as an unpacked extension, then register the host from a current-user PowerShell session. Pass all Chromium extension IDs (Chrome, Edge, and Brave) returned by each browser's extension details page:
-
-```powershell
-.\browser\install-browser-host.ps1 -InstallDir "C:\Program Files\Ss Download Manager" -ChromiumExtensionIds @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","cccccccccccccccccccccccccccccccc")
-```
-
-Firefox uses the fixed extension ID `ss-download-manager@heshamzegoo`; the installer registers the host for Firefox as well. The native host manifest is generated for the actual install path. These source extensions are not yet store-signed or automatically installed; final application packaging will include host installation and browser-specific extension distribution. Browser downloads are not silently cancelled or duplicated: links are sent when the user chooses an Ss Download Manager context-menu action.
+Browser downloads are not silently intercepted: the user chooses an Ss Download Manager context-menu action.
 
 ## Tests
 
