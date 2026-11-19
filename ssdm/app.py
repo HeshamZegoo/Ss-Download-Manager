@@ -879,7 +879,7 @@ class MainWindow(QMainWindow):
         job = self.jobs.pop(record["id"], None)
         if job:
             job.cancel(delete_partial=True)
-        else:
+        elif record.get("transfer_type") != "upload":
             Path(record["destination"] + ".part").unlink(missing_ok=True)
         self.records.remove(record)
         self._save()
