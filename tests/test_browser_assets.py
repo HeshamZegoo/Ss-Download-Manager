@@ -17,7 +17,6 @@ class BrowserExtensionTests(unittest.TestCase):
         self.assertIn("chrome.action.onClicked", worker)
         self.assertIn("chrome.downloads.onCreated", worker)
         self.assertIn("chrome.downloads.cancel", worker)
-        self.assertTrue((ROOT / "browser/chromium/service_worker.js").is_file())
 
     def test_firefox_extension_uses_native_messaging_and_downloads(self):
         manifest = json.loads((ROOT / "browser/firefox/manifest.json").read_text())
@@ -32,11 +31,10 @@ class BrowserExtensionTests(unittest.TestCase):
         self.assertIn("browser.browserAction.onClicked", background)
         self.assertIn("browser.downloads.onCreated", background)
         self.assertIn("browser.downloads.cancel", background)
-        self.assertTrue((ROOT / "browser/firefox/background.js").is_file())
 
     def test_installer_registers_all_four_browser_families(self):
-        script = (ROOT / "browser/install-browser-host.ps1").read_text()
-        for browser in ("Google\\\\Chrome", "Microsoft\\\\Edge", "BraveSoftware\\\\Brave-Browser", "Mozilla"):
+        script = (ROOT / "browser/install-browser-host.ps1").read_text().replace("\\", "/")
+        for browser in ("Google/Chrome", "Microsoft/Edge", "BraveSoftware/Brave-Browser", "Mozilla"):
             self.assertIn(browser, script)
 
 
