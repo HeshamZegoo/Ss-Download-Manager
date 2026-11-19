@@ -9,8 +9,11 @@ from PySide6.QtCore import QObject, QTimer, Signal
 
 try:
     import libtorrent as lt
-except ImportError:  # Keep HTTP downloads usable if the optional engine is unavailable.
+except Exception as exc:  # Native DLL load errors must not prevent HTTP downloads from starting.
     lt = None
+    _LIBTORRENT_IMPORT_ERROR = str(exc)
+else:
+    _LIBTORRENT_IMPORT_ERROR = ""
 
 
 class TorrentManager(QObject):
@@ -22,7 +25,8 @@ class TorrentManager(QObject):
     def __init__(self, state_dir: Path, parent=None):
         super().__init__(parent)
         if lt is None:
-            raise RuntimeError("The bundled libtorrent engine is unavailable.")
+            detail = f" Details: {_LIBTORRENT_IMPORT_ERROR}" if _LIBTORRENT_IMPORT_ERROR else ""
+            raise RuntimeError("The bundled libtorrent engine is unavailable." + detail)
         self.state_dir = Path(state_dir) / "torrents"
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.session = lt.session({
