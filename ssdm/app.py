@@ -91,6 +91,8 @@ class MainWindow(QMainWindow):
         self.records = []
         self.jobs = {}
         self.upload_jobs = {}
+        self.upload_passwords = {}
+        self.max_active_uploads = self.settings.value("max_active_uploads", 2, type=int)
         self.video_jobs = {}
         self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
@@ -134,6 +136,7 @@ class MainWindow(QMainWindow):
             ("Download folder", self.configure_download_folder),
             ("Connections", self.configure_connections),
             ("Queue limit", self.configure_queue_limit),
+            ("Upload queue limit", self.configure_upload_queue_limit),
             ("Speed limit", self.configure_speed_limit),
             ("Move up", self.move_selected_up),
             ("Move down", self.move_selected_down),
@@ -368,6 +371,7 @@ class MainWindow(QMainWindow):
         )
         for record in waiting[:max(0, self.max_active_downloads - active)]:
             self._start(record)
+        self._schedule_upload_queue()
 
     def schedule_selected(self):
         record = self._selected()
@@ -412,6 +416,17 @@ class MainWindow(QMainWindow):
             self.records[target], self.records[index] = record, other
             self._save()
             self.refresh()
+
+    def configure_upload_queue_limit(self):
+        value, ok = QInputDialog.getInt(
+            self, "Active uploads", "Maximum simultaneous uploads:",
+            self.max_active_uploads, 1, 16, 1
+        )
+        if ok:
+            self.max_active_uploads = value
+            self.settings.setValue("max_active_uploads", value)
+            self._schedule_upload_queue()
+            self.statusBar().showMessage(f"Maximum active uploads: {value}", 5000)
 
     def configure_connections(self):
         value, ok = QInputDialog.getInt(
@@ -612,18 +627,7 @@ class MainWindow(QMainWindow):
             if not ok:
                 return
         upload_id = uuid.uuid4().hex
-        callbacks = (
-            lambda sent, total, speed, uid=upload_id: self.signals.upload_progress.emit(uid, sent, total, speed),
-            lambda path, uid=upload_id: self.signals.upload_finished.emit(uid),
-            lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
-        )
-        if protocol.startswith("HTTP"):
-            job = UploadJob(source, destination.strip(), *callbacks)
-        elif protocol == "SFTP":
-            job = SFTPUploadJob(source, destination.strip(), password, *callbacks)
-        else:
-            job = FTPUploadJob(source, destination.strip(), password, *callbacks)
-        self.upload_jobs[upload_id] = job
+        self.upload_passwords[upload_id] = password
         size = Path(source).stat().st_size
         self.records.insert(0, {
             "id": upload_id, "url": destination.strip(), "name": Path(source).name,
@@ -634,8 +638,8 @@ class MainWindow(QMainWindow):
         })
         self._save()
         self.refresh()
-        self.statusBar().showMessage(f"Uploading {Path(source).name}…")
-        job.start()
+        self.statusBar().showMessage(f"Queued upload: {Path(source).name}")
+        self._schedule_upload_queue()
 
     def cancel_upload(self):
         if not self.upload_jobs:
@@ -648,8 +652,10 @@ class MainWindow(QMainWindow):
         if record:
             record["status"] = "Cancelled"
             record["speed"] = 0
+        self.upload_passwords.pop(upload_id, None)
         self._save()
         self.refresh()
+        self._schedule_upload_queue()
         self.statusBar().showMessage(f"Cancelled upload: {job.source.name}", 5000)
 
     def on_upload_progress(self, upload_id, sent, total, speed):
@@ -675,9 +681,11 @@ class MainWindow(QMainWindow):
             record["speed"] = 0
         self._save()
         self.refresh()
+        self.upload_passwords.pop(upload_id, None)
         if job:
             QMessageBox.information(self, "Upload complete", f"{job.source.name} was uploaded successfully.")
             self.statusBar().showMessage("Upload completed", 5000)
+        self._schedule_upload_queue()
 
     def on_upload_failed(self, upload_id, error):
         self.upload_jobs.pop(upload_id, None)
@@ -690,6 +698,7 @@ class MainWindow(QMainWindow):
         self.refresh()
         QMessageBox.warning(self, "Upload failed", error)
         self.statusBar().showMessage("Upload failed", 5000)
+        self._schedule_upload_queue()
 
     def _selected(self):
         rows = self.table.selectionModel().selectedRows()
@@ -719,7 +728,38 @@ class MainWindow(QMainWindow):
             )
             if not ok:
                 return
+        self.upload_passwords[record["id"]] = password
+        record["status"] = "Queued"
+        record["speed"] = 0
+        record.pop("error", None)
+        self._save()
+        self.refresh()
+        self._schedule_upload_queue()
+
+    def _schedule_upload_queue(self):
+        active = len(self.upload_jobs)
+        waiting = [r for r in self.records
+                   if r.get("transfer_type") == "upload" and r.get("status") == "Queued"]
+        for record in waiting[:max(0, self.max_active_uploads - active)]:
+            self._start_upload_record(record)
+
+    def _start_upload_record(self, record):
         upload_id = record["id"]
+        if upload_id in self.upload_jobs:
+            return
+        protocol = record.get("upload_protocol", "HTTP PUT / WebDAV")
+        password = self.upload_passwords.get(upload_id, "")
+        if protocol in ("SFTP", "FTP", "FTPS") and not password:
+            password, ok = QInputDialog.getText(
+                self, f"{protocol} authentication", "Password (not saved):",
+                QLineEdit.EchoMode.Password
+            )
+            if not ok:
+                record["status"] = "Paused"
+                self._save()
+                self.refresh()
+                return
+            self.upload_passwords[upload_id] = password
         callbacks = (
             lambda sent, total, speed, uid=upload_id: self.signals.upload_progress.emit(uid, sent, total, speed),
             lambda path, uid=upload_id: self.signals.upload_finished.emit(uid),
@@ -733,8 +773,6 @@ class MainWindow(QMainWindow):
             job = FTPUploadJob(record["destination"], record["url"], password, *callbacks)
         self.upload_jobs[upload_id] = job
         record["status"] = "Uploading"
-        record["speed"] = 0
-        record.pop("error", None)
         self._save()
         self.refresh()
         job.start()
@@ -783,6 +821,7 @@ class MainWindow(QMainWindow):
         upload = self.upload_jobs.pop(record["id"], None)
         if upload:
             upload.cancel()
+        self.upload_passwords.pop(record["id"], None)
         job = self.jobs.pop(record["id"], None)
         if job:
             job.cancel(delete_partial=True)
