@@ -94,13 +94,13 @@ class MainWindow(QMainWindow):
         self.store = data_dir() / "downloads.json"
         self._load()
 
-        self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["File name", "Status", "Progress", "Downloaded", "Speed", "Location"])
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["File name", "Category", "Status", "Progress", "Downloaded", "Speed", "Location"])
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for col in range(1, 6):
+        for col in range(1, 7):
             self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.setCentralWidget(self.table)
 
@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
             record.setdefault("downloaded", 0)
             record.setdefault("total", None)
             record.setdefault("speed", 0)
+            record.setdefault("category", _category(record.get("name", "")))
             if record.get("status") == "Downloading":
                 record["status"] = "Paused"
 
@@ -179,7 +180,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Already added", "This destination is already in the download list.")
             return
         record = {"id": uuid.uuid4().hex, "url": url, "name": name, "destination": destination,
-                  "status": "Queued", "downloaded": 0, "total": None, "speed": 0}
+                  "status": "Queued", "downloaded": 0, "total": None, "speed": 0,
+                  "category": _category(name)}
         self.records.insert(0, record)
         self._save()
         self.refresh()
@@ -228,7 +230,7 @@ class MainWindow(QMainWindow):
             record = {
                 "id": uuid.uuid4().hex, "url": url, "name": name,
                 "destination": destination, "status": "Queued",
-                "downloaded": 0, "total": None, "speed": 0,
+                "downloaded": 0, "total": None, "speed": 0, "category": _category(name),
             }
             self.records.insert(0, record)
             added.append(record)
@@ -388,7 +390,7 @@ class MainWindow(QMainWindow):
         self.table.setRowCount(len(visible))
         for row, record in enumerate(visible):
             values = [
-                record["name"], record["status"],
+                record["name"], record.get("category", "Other"), record["status"],
                 f"{(record['downloaded'] / record['total'] * 100):.1f}%" if record.get("total") else "—",
                 _human(record.get("downloaded", 0)),
                 _speed(record.get("speed", 0)),
@@ -400,6 +402,19 @@ class MainWindow(QMainWindow):
                     item.setToolTip(record.get("url", ""))
                 self.table.setItem(row, col, item)
         self.statusBar().showMessage(f"{len(self.records)} downloads · {sum(r['status'] == 'Downloading' for r in self.records)} active")
+
+
+def _category(name):
+    ext = Path(name).suffix.lower()
+    groups = {
+        "Video": {".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v"},
+        "Audio": {".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"},
+        "Images": {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"},
+        "Archives": {".zip", ".rar", ".7z", ".tar", ".gz", ".bz2"},
+        "Documents": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt"},
+        "Programs": {".exe", ".msi", ".msix", ".apk", ".deb", ".rpm"},
+    }
+    return next((category for category, extensions in groups.items() if ext in extensions), "Other")
 
 
 def _human(size):
