@@ -85,6 +85,7 @@ class MainWindow(QMainWindow):
         self.records = []
         self.jobs = {}
         self.upload_jobs = {}
+        self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
         self.max_connections = self.settings.value("max_connections", 8, type=int)
         self.max_active_downloads = self.settings.value("max_active_downloads", 3, type=int)
@@ -275,6 +276,8 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage(f"Maximum active downloads: {value}", 5000)
 
     def _schedule_queue(self):
+        if self.pausing_all:
+            return
         active = len(self.jobs)
         now = datetime.now()
         waiting = sorted(
@@ -485,11 +488,16 @@ class MainWindow(QMainWindow):
             self.refresh()
 
     def pause_all(self):
+        self.pausing_all = True
         for record in self.records:
+            if record["status"] == "Queued":
+                record["status"] = "Paused"
             if record["id"] in self.jobs:
                 self.jobs[record["id"]].pause()
                 record["status"] = "Paused"
                 record["speed"] = 0
+        if not self.jobs:
+            self.pausing_all = False
         self._save()
         self.refresh()
 
@@ -505,6 +513,7 @@ class MainWindow(QMainWindow):
         self.records.remove(record)
         self._save()
         self.refresh()
+        self._schedule_queue()
 
     def verify_selected(self):
         record = self._selected()
@@ -554,6 +563,8 @@ class MainWindow(QMainWindow):
 
     def on_paused(self, job_id):
         self.jobs.pop(job_id, None)
+        if self.pausing_all and not self.jobs:
+            self.pausing_all = False
         record = self._by_id(job_id)
         if record:
             record['status'] = 'Paused'
