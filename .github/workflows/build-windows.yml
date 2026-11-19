@@ -94,6 +94,8 @@ jobs:
           if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
           & $iscc installer/SsDownloadManager.iss
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+          if (!(Test-Path "dist/Ss-Download-Manager-Setup.exe")) { throw "Setup EXE was not written to dist/" }
+          if (!(Test-Path "dist/SsDownloadManager/SsDownloadManager.exe")) { throw "Packaged application EXE is missing" }
 
       - name: Generate SHA-256 checksums
         shell: pwsh
