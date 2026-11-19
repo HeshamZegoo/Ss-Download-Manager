@@ -614,7 +614,7 @@ class MainWindow(QMainWindow):
         size = Path(source).stat().st_size
         self.records.insert(0, {
             "id": upload_id, "url": destination.strip(), "name": Path(source).name,
-            "destination": source, "url": destination.strip(),
+            "destination": source,
             "status": "Uploading", "downloaded": 0,
             "total": size, "speed": 0, "category": "Upload",
             "transfer_type": "upload", "upload_protocol": protocol,
@@ -751,6 +751,11 @@ class MainWindow(QMainWindow):
                 record["status"] = "Paused"
             if record["id"] in self.jobs:
                 self.jobs[record["id"]].pause()
+                record["status"] = "Paused"
+                record["speed"] = 0
+            if record.get("transfer_type") == "upload" and record["id"] in self.upload_jobs:
+                upload = self.upload_jobs.pop(record["id"])
+                upload.cancel()
                 record["status"] = "Paused"
                 record["speed"] = 0
         if not self.jobs:
