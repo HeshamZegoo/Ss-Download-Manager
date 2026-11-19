@@ -15,11 +15,12 @@ from PySide6.QtCore import QUrl
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
-    QMessageBox, QPushButton, QProgressBar, QTableWidget, QTableWidgetItem,
+    QMessageBox, QPushButton, QProgressBar, QTableWidget, QTableWidgetItem, QInputDialog,
     QToolBar, QVBoxLayout, QWidget, QLabel
 )
 
 from .downloader import DownloadJob, filename_from_url
+from .uploader import UploadJob
 
 APP_NAME = "Ss Download Manager"
 
@@ -35,6 +36,9 @@ class JobSignals(QObject):
     finished = Signal(str, str)
     failed = Signal(str, str)
     paused = Signal(str)
+    upload_progress = Signal(str, int, int, float)
+    upload_finished = Signal(str)
+    upload_failed = Signal(str, str)
 
 
 class AddDialog(QDialog):
@@ -78,11 +82,15 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(820, 520)
         self.records = []
         self.jobs = {}
+        self.upload_jobs = {}
         self.signals = JobSignals()
         self.signals.progress.connect(self.on_progress)
         self.signals.finished.connect(self.on_finished)
         self.signals.failed.connect(self.on_failed)
         self.signals.paused.connect(self.on_paused)
+        self.signals.upload_progress.connect(self.on_upload_progress)
+        self.signals.upload_finished.connect(self.on_upload_finished)
+        self.signals.upload_failed.connect(self.on_upload_failed)
         self.store = data_dir() / "downloads.json"
         self._load()
 
@@ -101,6 +109,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
         for label, handler in [
             ("＋ Add URL", self.add_download),
+            ("↑ Upload file", self.upload_file),
             ("▶ Resume", self.resume_selected),
             ("Ⅱ Pause", self.pause_selected),
             ("■ Pause all", self.pause_all),
@@ -191,6 +200,49 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def upload_file(self):
+        source, _ = QFileDialog.getOpenFileName(self, "Choose file to upload")
+        if not source:
+            return
+        destination, ok = QInputDialog.getText(
+            self, "Upload destination", "HTTP(S) PUT destination URL (WebDAV or pre-signed URL):"
+        )
+        if not ok or not destination.strip():
+            return
+        parsed = urlparse(destination.strip())
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP or HTTPS upload URL.")
+            return
+        upload_id = uuid.uuid4().hex
+        job = UploadJob(
+            source, destination.strip(),
+            lambda sent, total, speed, uid=upload_id: self.signals.upload_progress.emit(uid, sent, total, speed),
+            lambda path, uid=upload_id: self.signals.upload_finished.emit(uid),
+            lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
+        )
+        self.upload_jobs[upload_id] = job
+        self.statusBar().showMessage(f"Uploading {Path(source).name}…")
+        job.start()
+
+    def on_upload_progress(self, upload_id, sent, total, speed):
+        job = self.upload_jobs.get(upload_id)
+        if job:
+            percent = (sent / total * 100) if total else 0
+            self.statusBar().showMessage(
+                f"Uploading {job.source.name}: {percent:.1f}% · {_human(speed)}/s"
+            )
+
+    def on_upload_finished(self, upload_id):
+        job = self.upload_jobs.pop(upload_id, None)
+        if job:
+            QMessageBox.information(self, "Upload complete", f"{job.source.name} was uploaded successfully.")
+            self.statusBar().showMessage("Upload completed", 5000)
+
+    def on_upload_failed(self, upload_id, error):
+        self.upload_jobs.pop(upload_id, None)
+        QMessageBox.warning(self, "Upload failed", error)
+        self.statusBar().showMessage("Upload failed", 5000)
 
     def _selected(self):
         rows = self.table.selectionModel().selectedRows()
