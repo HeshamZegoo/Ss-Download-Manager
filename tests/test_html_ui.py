@@ -13,6 +13,7 @@ class HtmlInterfaceTests(unittest.TestCase):
         self.assertIn("Link Grabber", source)
         self.assertIn("Remember this location", source)
         self.assertIn("ssdmOpenGrabber", source)
+        self.assertIn("Link Grabber", source)
         self.assertNotIn("setInterval(function()", source)
 
 
