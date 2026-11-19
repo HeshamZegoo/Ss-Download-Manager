@@ -6,7 +6,8 @@
   "permissions": [
     "activeTab",
     "contextMenus",
-    "nativeMessaging"
+    "nativeMessaging",
+    "downloads"
   ],
   "background": {
     "service_worker": "service_worker.js"
