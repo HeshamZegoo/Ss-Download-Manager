@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QDateTimeEdit,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
     QMessageBox, QPushButton, QProgressBar, QTableWidget, QTableWidgetItem, QInputDialog,
-    QToolBar, QVBoxLayout, QWidget, QLabel, QSystemTrayIcon, QMenu
+    QToolBar, QVBoxLayout, QWidget, QLabel, QSystemTrayIcon, QMenu, QTextEdit, QCheckBox
 )
 
 from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
@@ -87,6 +87,65 @@ class AddDialog(QDialog):
 
     def values(self):
         return self.url.text().strip(), self.folder.text().strip()
+
+
+class LinkGrabberDialog(QDialog):
+    def __init__(self, window, urls=""):
+        super().__init__(None, Qt.WindowType.Window)
+        self.window = window
+        self.setWindowTitle("Link Grabber — Ss Download Manager")
+        self.setWindowIcon(window.windowIcon())
+        self.setMinimumSize(560, 390)
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        layout = QVBoxLayout(self)
+        title = QLabel("Link Grabber")
+        title.setStyleSheet("font-size:18px;font-weight:700")
+        layout.addWidget(title)
+        hint = QLabel("Copy one or more HTTP/HTTPS links and they will appear here automatically. Choose where to save them.")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        layout.addWidget(QLabel("Links to download"))
+        self.urls = QTextEdit()
+        self.urls.setPlaceholderText("https://example.com/file.zip")
+        self.urls.setPlainText(urls)
+        layout.addWidget(self.urls, 1)
+        layout.addWidget(QLabel("Download location"))
+        folder_row = QHBoxLayout()
+        self.folder = QLineEdit()
+        default_folder = window.grabber_download_dir if window.grabber_remember_location else str(window.default_download_dir)
+        self.folder.setText(default_folder)
+        browse = QPushButton("Browse")
+        browse.clicked.connect(self.choose_folder)
+        folder_row.addWidget(self.folder, 1)
+        folder_row.addWidget(browse)
+        layout.addLayout(folder_row)
+        self.remember = QCheckBox("Remember this location")
+        self.remember.setChecked(window.grabber_remember_location)
+        layout.addWidget(self.remember)
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancel")
+        add = QPushButton("Add to downloads")
+        add.setDefault(True)
+        cancel.clicked.connect(self.reject)
+        add.clicked.connect(self.add_downloads)
+        buttons.addWidget(cancel)
+        buttons.addWidget(add)
+        layout.addLayout(buttons)
+
+    def choose_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Choose download location", self.folder.text())
+        if folder:
+            self.folder.setText(folder)
+
+    def add_downloads(self):
+        self.window.add_grabber_downloads(self.urls.toPlainText(), self.folder.text(), self.remember.isChecked())
+        self.accept()
+
+    def reject(self):
+        self.window._grabber_open = False
+        self.window._last_clipboard_text = ""
+        super().reject()
 
 
 class HtmlBridge(QObject):
@@ -276,7 +335,9 @@ class MainWindow(QMainWindow):
             self.tray.setToolTip(APP_NAME)
             tray_menu = QMenu()
             show_action = tray_menu.addAction("Show Ss Download Manager")
-            show_action.triggered.connect(self.showNormal)
+            show_action.triggered.connect(self.show_main_window)
+            grabber_action = tray_menu.addAction("Open Link Grabber")
+            grabber_action.triggered.connect(self.open_link_grabber)
             tray_menu.addSeparator()
             exit_action = tray_menu.addAction("Exit")
             exit_action.triggered.connect(QApplication.quit)
@@ -304,22 +365,39 @@ class MainWindow(QMainWindow):
         if self._grabber_open:
             return
         try:
-            text = QApplication.clipboard().text().strip()
+            clip_text = QApplication.clipboard().text().strip()
         except Exception:
             return
-        if not text or text == self._last_clipboard_text:
+        if not clip_text or clip_text == self._last_clipboard_text:
             return
-        self._last_clipboard_text = text
-        urls = [line.strip() for line in text.splitlines() if urlparse(line.strip()).scheme in ("http", "https") and urlparse(line.strip()).netloc]
+        self._last_clipboard_text = clip_text
+        # Accept one URL per line and URLs separated by spaces or tabs.
+        import re
+        candidates = re.findall(r"https?://[^\\s<>\"']+", clip_text)
+        urls = list(dict.fromkeys(u.rstrip(".,);]") for u in candidates))
         if not urls:
             return
         self._grabber_open = True
-        self._pending_grabber_urls = "\n".join(urls)
-        self.showNormal()
-        self.raise_()
-        self.activateWindow()
-        QTimer.singleShot(500, self._display_grabber)
-        self.statusBar().showMessage(f"Link Grabber: {len(urls)} copied link(s) detected", 5000)
+        QTimer.singleShot(120, lambda: self._show_standalone_grabber("\\n".join(urls)))
+
+    def _show_standalone_grabber(self, urls):
+        if not self._grabber_open:
+            return
+        dialog = LinkGrabberDialog(self, urls)
+        self._grabber_dialog = dialog
+        dialog.finished.connect(lambda _result: self._grabber_dialog_closed())
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def _grabber_dialog_closed(self):
+        self._grabber_open = False
+        self._last_clipboard_text = ""
+        self._grabber_dialog = None
+
+    def open_link_grabber(self):
+        self._grabber_open = True
+        self._show_standalone_grabber("")
 
     def _display_grabber(self):
         folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
@@ -395,6 +473,11 @@ class MainWindow(QMainWindow):
             f"<p>{COPYRIGHT_NOTICE}</p>"
             f"<p><a href='https://github.com/HeshamZegoo/Ss-Download-Manager'>GitHub project</a></p>"
         )
+
+    def show_main_window(self):
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
 
     def closeEvent(self, event):
         if self.tray and self.tray.isVisible():
@@ -1307,7 +1390,10 @@ def main():
     sys.excepthook = log_uncaught_exception
     try:
         window = MainWindow()
-        window.show()
+        if "--background" in sys.argv:
+            window.hide()
+        else:
+            window.show()
         sys.exit(app.exec())
     except Exception:
         details = traceback.format_exc()
