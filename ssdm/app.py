@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.upload_jobs = {}
         self.settings = QSettings("SsDM", "SsDownloadManager")
         self.max_connections = self.settings.value("max_connections", 8, type=int)
+        self.max_active_downloads = self.settings.value("max_active_downloads", 3, type=int)
         self.clipboard_monitoring = False
         self.signals = JobSignals()
         self.signals.progress.connect(self.on_progress)
@@ -115,6 +116,9 @@ class MainWindow(QMainWindow):
             ("＋ Add URL", self.add_download),
             ("＋ Batch URLs", self.add_batch_downloads),
             ("Connections", self.configure_connections),
+            ("Queue limit", self.configure_queue_limit),
+            ("Move up", self.move_selected_up),
+            ("Move down", self.move_selected_down),
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
             ("▶ Resume", self.resume_selected),
@@ -198,6 +202,11 @@ class MainWindow(QMainWindow):
         job_id = record["id"]
         if job_id in self.jobs:
             return
+        if len(self.jobs) >= self.max_active_downloads:
+            record["status"] = "Queued"
+            self._save()
+            self.refresh()
+            return
         record["status"] = "Downloading"
         job = DownloadJob(
             record["url"], record["destination"],
@@ -211,6 +220,44 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def configure_queue_limit(self):
+        value, ok = QInputDialog.getInt(
+            self, "Active downloads", "Maximum simultaneous files:",
+            self.max_active_downloads, 1, 32, 1
+        )
+        if ok:
+            self.max_active_downloads = value
+            self.settings.setValue("max_active_downloads", value)
+            self._schedule_queue()
+            self.statusBar().showMessage(f"Maximum active downloads: {value}", 5000)
+
+    def _schedule_queue(self):
+        active = len(self.jobs)
+        waiting = sorted(
+            (r for r in self.records if r.get("status") == "Queued"),
+            key=lambda r: r.get("priority", 0), reverse=True,
+        )
+        for record in waiting[:max(0, self.max_active_downloads - active)]:
+            self._start(record)
+
+    def move_selected_up(self):
+        self._move_selected(-1)
+
+    def move_selected_down(self):
+        self._move_selected(1)
+
+    def _move_selected(self, direction):
+        record = self._selected()
+        if not record or record.get("status") != "Queued":
+            return
+        index = self.records.index(record)
+        target = index + direction
+        if 0 <= target < len(self.records):
+            other = self.records[target]
+            self.records[target], self.records[index] = record, other
+            self._save()
+            self.refresh()
 
     def configure_connections(self):
         value, ok = QInputDialog.getInt(
@@ -443,6 +490,7 @@ class MainWindow(QMainWindow):
             record['speed'] = 0
         self._save()
         self.refresh()
+        self._schedule_queue()
 
     def on_finished(self, job_id, path):
         self.jobs.pop(job_id, None)
@@ -460,6 +508,7 @@ class MainWindow(QMainWindow):
         self._save()
         self.refresh()
         self.statusBar().showMessage("Download completed", 5000)
+        self._schedule_queue()
 
     def on_failed(self, job_id, error):
         self.jobs.pop(job_id, None)
@@ -471,6 +520,7 @@ class MainWindow(QMainWindow):
         self._save()
         self.refresh()
         QMessageBox.warning(self, "Download failed", error)
+        self._schedule_queue()
 
     def _by_id(self, job_id):
         return next((r for r in self.records if r["id"] == job_id), None)
