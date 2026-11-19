@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -115,6 +116,7 @@ class MainWindow(QMainWindow):
             ("Ⅱ Pause", self.pause_selected),
             ("■ Pause all", self.pause_all),
             ("✕ Remove", self.remove_selected),
+            ("Verify SHA-256", self.verify_selected),
             ("Open file", self.open_selected),
             ("Open folder", self.open_folder_selected),
         ]:
@@ -326,6 +328,35 @@ class MainWindow(QMainWindow):
         self.records.remove(record)
         self._save()
         self.refresh()
+
+    def verify_selected(self):
+        record = self._selected()
+        if not record or record.get("status") != "Completed":
+            QMessageBox.information(self, "SHA-256 verification", "Select a completed download first.")
+            return
+        path = Path(record["destination"])
+        digest = hashlib.sha256()
+        try:
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError as exc:
+            QMessageBox.warning(self, "Verification failed", str(exc))
+            return
+        actual = digest.hexdigest()
+        expected, ok = QInputDialog.getText(
+            self, "SHA-256 checksum", "Optional expected SHA-256 (leave blank to calculate only):"
+        )
+        if not ok:
+            return
+        if expected.strip():
+            matched = actual.lower() == expected.strip().lower()
+            QMessageBox.information(
+                self, "Checksum result",
+                ("MATCH\n" if matched else "MISMATCH\n") + f"SHA-256: {actual}"
+            )
+        else:
+            QMessageBox.information(self, "SHA-256", actual)
 
     def open_selected(self):
         record = self._selected()
