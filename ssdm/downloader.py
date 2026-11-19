@@ -1,8 +1,10 @@
-"""Threaded HTTP downloader with pause/resume and persistent partial files."""
+"""Resumable HTTP downloader with safe segmented range downloads."""
 from __future__ import annotations
 
 import os
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable
 from urllib.parse import unquote, urlparse
@@ -20,135 +22,231 @@ def filename_from_url(url: str) -> str:
 
 
 class DownloadJob:
-    """A resumable single-stream HTTP download.
-
-    A .part file is retained on pause or interruption. Resume uses Range and
-    validates the server's Content-Range response before appending bytes.
-    """
-
     def __init__(
-        self,
-        url: str,
-        destination: str,
+        self, url: str, destination: str,
         progress: Callable[[int, int | None, float], None],
-        finished: Callable[[str], None],
-        failed: Callable[[str], None],
+        finished: Callable[[str], None], failed: Callable[[str], None],
         paused: Callable[[], None] | None = None,
         chunk_size: int = 256 * 1024,
+        max_connections: int = 8,
     ) -> None:
         self.url = url
         self.destination = Path(destination)
         self.part_path = Path(str(self.destination) + ".part")
-        self.progress = progress
-        self.finished = finished
-        self.failed = failed
+        self.progress, self.finished, self.failed = progress, finished, failed
         self.paused = paused or (lambda: None)
         self.chunk_size = chunk_size
-        self._pause = False
-        self._cancel = False
+        self.max_connections = max(1, min(int(max_connections), 32))
+        self._pause = threading.Event()
+        self._cancel = threading.Event()
         self._thread = None
         self._response = None
+        self._active = set()
+        self._lock = threading.Lock()
 
-    def start(self) -> None:
-        import threading
+    def start(self):
         if self._thread and self._thread.is_alive():
             return
-        self._pause = False
-        self._cancel = False
+        self._pause.clear()
+        self._cancel.clear()
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
-    def pause(self) -> None:
-        # Let the current chunk finish so the partial file remains consistent.
-        self._pause = True
-
-    def cancel(self, delete_partial: bool = False) -> None:
-        self._cancel = True
-        self._pause = False
-        response = self._response
-        if response is not None:
-            response.close()
-        if delete_partial:
+    def pause(self):
+        self._pause.set()
+        with self._lock:
+            active = list(self._active)
+        for response in active:
             try:
-                self.part_path.unlink(missing_ok=True)
-            except OSError:
+                response.close()
+            except Exception:
                 pass
 
-    def _run(self) -> None:
+    def cancel(self, delete_partial=False):
+        self._cancel.set()
+        self._pause.clear()
+        with self._lock:
+            active = list(self._active)
+        for response in active:
+            try:
+                response.close()
+            except Exception:
+                pass
+        if delete_partial:
+            self.part_path.unlink(missing_ok=True)
+            for path in self.part_path.parent.glob(self.part_path.name + ".seg*"):
+                path.unlink(missing_ok=True)
+
+    def _track(self, response):
+        with self._lock:
+            self._active.add(response)
+
+    def _untrack(self, response):
+        with self._lock:
+            self._active.discard(response)
+
+    def _run(self):
         try:
-            offset = self.part_path.stat().st_size if self.part_path.exists() else 0
-            headers = {"User-Agent": "SsDownloadManager/0.1", "Accept-Encoding": "identity"}
-            if offset:
-                headers["Range"] = f"bytes={offset}-"
+            self.destination.parent.mkdir(parents=True, exist_ok=True)
+            # Probe range support and total length without downloading the body.
+            with requests.get(
+                self.url, headers={"Range": "bytes=0-0", "Accept-Encoding": "identity",
+                                   "User-Agent": "SsDownloadManager/1.0"},
+                stream=True, timeout=(20, 30), allow_redirects=True,
+            ) as probe:
+                supports_ranges = probe.status_code == 206
+                cr = probe.headers.get("Content-Range", "")
+                total = _total_from_content_range(cr) if supports_ranges else _int_header(probe.headers.get("Content-Length"))
+                probe.close()
+            if self.max_connections > 1 and supports_ranges and total and total > self.chunk_size:
+                self._run_segmented(total)
+            else:
+                self._run_single()
+        except Exception as exc:
+            if not self._cancel.is_set() and not self._pause.is_set():
+                self.failed(str(exc))
 
+    def _run_single(self):
+        offset = self.part_path.stat().st_size if self.part_path.exists() else 0
+        headers = {"User-Agent": "SsDownloadManager/1.0", "Accept-Encoding": "identity"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        with requests.get(self.url, headers=headers, stream=True, timeout=(20, 30), allow_redirects=True) as response:
+            self._track(response)
+            if offset and response.status_code == 206:
+                cr = response.headers.get("Content-Range", "")
+                if not cr.startswith(f"bytes {offset}-"):
+                    raise DownloadError("Invalid Range response; restart this download.")
+                mode, total = "ab", _total_from_content_range(cr)
+            elif offset and response.status_code == 200:
+                offset, mode = 0, "wb"
+                total = _int_header(response.headers.get("Content-Length"))
+            else:
+                response.raise_for_status()
+                mode = "wb"
+                total = _total_from_content_range(response.headers.get("Content-Range", "")) or _int_header(response.headers.get("Content-Length"))
+            received, last_time, last_bytes = offset, time.monotonic(), offset
+            with self.part_path.open(mode) as output:
+                for chunk in response.iter_content(self.chunk_size):
+                    if self._cancel.is_set() or self._pause.is_set():
+                        break
+                    if not chunk:
+                        continue
+                    output.write(chunk)
+                    received += len(chunk)
+                    now = time.monotonic()
+                    if now - last_time >= .3:
+                        self.progress(received, total, (received-last_bytes)/(now-last_time))
+                        last_time, last_bytes = now, received
+                output.flush()
+                os.fsync(output.fileno())
+            self._untrack(response)
+        if self._cancel.is_set():
+            return
+        if self._pause.is_set():
+            self.progress(received, total, 0.0)
+            self.paused()
+            return
+        if total is not None and received != total:
+            raise DownloadError(f"Download ended early ({received} of {total} bytes). Resume is available.")
+        os.replace(self.part_path, self.destination)
+        self.progress(received, total, 0.0)
+        self.finished(str(self.destination))
+
+    def _run_segmented(self, total):
+        count = min(self.max_connections, max(2, (total + self.chunk_size - 1)//self.chunk_size))
+        ranges = []
+        for index in range(count):
+            start = total * index // count
+            end = total * (index + 1) // count - 1
+            path = Path(str(self.part_path) + f".seg{index}")
+            if path.exists():
+                size = path.stat().st_size
+                if size > end-start+1:
+                    path.unlink()
+                    size = 0
+            else:
+                size = 0
+            ranges.append((index, start, end, path, size))
+        initial = sum(item[4] for item in ranges)
+        transferred = [initial]
+        transfer_lock = threading.Lock()
+        started = time.monotonic()
+        last_report = [started, initial]
+
+        def worker(item):
+            index, start, end, path, existing = item
+            position = start + existing
+            if position > end:
+                return
+            headers = {"Range": f"bytes={position}-{end}", "Accept-Encoding": "identity",
+                       "User-Agent": "SsDownloadManager/1.0"}
             with requests.get(self.url, headers=headers, stream=True, timeout=(20, 30), allow_redirects=True) as response:
-                self._response = response
-                if offset and response.status_code == 206:
-                    content_range = response.headers.get("Content-Range", "")
-                    if not content_range.startswith(f"bytes {offset}-"):
-                        raise DownloadError("The server returned an invalid Range response; restart this download.")
-                    mode = "ab"
-                    total = _total_from_content_range(content_range)
-                elif offset and response.status_code == 200:
-                    # Server ignored Range. Restart safely rather than corrupting the file.
-                    offset = 0
-                    mode = "wb"
-                    total = _int_header(response.headers.get("Content-Length"))
-                elif response.status_code == 206:
-                    mode = "wb"
-                    total = _total_from_content_range(response.headers.get("Content-Range", ""))
-                else:
-                    response.raise_for_status()
-                    mode = "wb"
-                    total = _int_header(response.headers.get("Content-Length"))
-
-                received = offset
-                started = time.monotonic()
-                last_time = started
-                last_bytes = received
-                with open(self.part_path, mode) as output:
-                    for chunk in response.iter_content(chunk_size=self.chunk_size):
-                        if self._cancel or self._pause:
+                self._track(response)
+                if response.status_code != 206:
+                    raise DownloadError("Server stopped supporting byte ranges; restart this download.")
+                expected_prefix = f"bytes {position}-"
+                if not response.headers.get("Content-Range", "").startswith(expected_prefix):
+                    raise DownloadError("Server returned an invalid segment range.")
+                with path.open("ab" if existing else "wb") as output:
+                    for chunk in response.iter_content(self.chunk_size):
+                        if self._cancel.is_set() or self._pause.is_set():
                             break
                         if not chunk:
                             continue
                         output.write(chunk)
-                        received += len(chunk)
-                        now = time.monotonic()
-                        if now - last_time >= 0.35:
-                            speed = (received - last_bytes) / max(now - last_time, 0.001)
-                            self.progress(received, total, speed)
-                            last_time, last_bytes = now, received
+                        with transfer_lock:
+                            transferred[0] += len(chunk)
+                            now = time.monotonic()
+                            if now - last_report[0] >= .3:
+                                speed = (transferred[0]-last_report[1])/(now-last_report[0])
+                                self.progress(transferred[0], total, speed)
+                                last_report[:] = [now, transferred[0]]
                     output.flush()
                     os.fsync(output.fileno())
+                self._untrack(response)
 
-            self._response = None
-            if self._cancel:
-                return
-            if self._pause:
-                self.progress(received, total, 0.0)
-                self.paused()
-                return
-            if total is not None and received != total:
-                raise DownloadError(f"Download ended early ({received} of {total} bytes). You can resume it.")
-            self.destination.parent.mkdir(parents=True, exist_ok=True)
-            os.replace(self.part_path, self.destination)
-            self.progress(received, total, 0.0)
-            self.finished(str(self.destination))
-        except Exception as exc:
-            self._response = None
-            if not self._cancel and not self._pause:
-                self.failed(str(exc))
+        with ThreadPoolExecutor(max_workers=count) as pool:
+            futures = [pool.submit(worker, item) for item in ranges]
+            for future in futures:
+                future.result()
+        if self._cancel.is_set():
+            return
+        if self._pause.is_set():
+            self.progress(transferred[0], total, 0.0)
+            self.paused()
+            return
+        for _, start, end, path, _ in ranges:
+            expected = end-start+1
+            if not path.exists() or path.stat().st_size != expected:
+                raise DownloadError("A download segment is incomplete. Resume to continue.")
+        with self.part_path.open("wb") as output:
+            for _, _, _, path, _ in ranges:
+                with path.open("rb") as source:
+                    while True:
+                        block = source.read(1024 * 1024)
+                        if not block:
+                            break
+                        output.write(block)
+            output.flush()
+            os.fsync(output.fileno())
+        for _, _, _, path, _ in ranges:
+            path.unlink(missing_ok=True)
+        if self.part_path.stat().st_size != total:
+            raise DownloadError("Final file size does not match the server's advertised size.")
+        os.replace(self.part_path, self.destination)
+        self.progress(total, total, 0.0)
+        self.finished(str(self.destination))
 
 
-def _int_header(value: str | None) -> int | None:
+def _int_header(value):
     try:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
         return None
 
 
-def _total_from_content_range(value: str) -> int | None:
+def _total_from_content_range(value):
     try:
         return int(value.rsplit("/", 1)[1])
     except (IndexError, ValueError):
