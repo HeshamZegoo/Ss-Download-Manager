@@ -5,10 +5,11 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 ## Implemented in the current source
 
 - Native PySide6 desktop interface.
-- Real HTTP/HTTPS downloads with pause/resume using HTTP Range when supported.
+- Real HTTP/HTTPS downloads with pause/resume; segmented multi-connection downloads when the server supports byte ranges, with a safe single-stream fallback.
 - Persistent download history and retained partial download files.
 - Per-download progress, speed, status, and search.
-- Batch URL import (one URL per line).
+- Batch URL import (one URL per line), configurable per-file connection count, and a bounded active-download queue.
+- Queue ordering controls and a clipboard URL monitor with user confirmation.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
@@ -38,12 +39,10 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- Multi-connection segmented downloads and configurable connection counts.
-- Optional speed limiter (default remains unlimited by the app).
-- Download queue concurrency controls, priorities, and scheduled start/stop.
-- Clipboard URL monitoring.
+- Optional aggregate speed limiter (default remains unlimited by the app).
+- Scheduled downloads and automated start/stop windows.
+- Browser extensions / browser integration and video extraction.
 - FTP/SFTP upload, upload queue/history, and resumable uploads.
-- Browser integration and video extraction.
 - Notifications, system tray/background mode, and polished settings/preferences.
 
 ## Limitations
