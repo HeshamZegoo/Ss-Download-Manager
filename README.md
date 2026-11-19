@@ -31,7 +31,7 @@ python main.py
 
 ## Uploading
 
-Choose **Upload file**, select a local file, then choose HTTP PUT, TUS resumable, SFTP, FTP, or FTPS. HTTP PUT requires a destination URL that accepts PUT. TUS requires a server endpoint implementing the tus 1.0 protocol; its session URL is stored in the local transfer history to support restart recovery. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
+Choose **Upload file**, select a local file, then choose HTTP PUT, TUS resumable, SFTP, FTP, or FTPS. HTTP PUT requires a destination URL that accepts PUT. TUS requires a server endpoint implementing the tus 1.0 protocol; its session URL is stored in the local transfer history to support restart recovery. Treat that URL as sensitive because some TUS servers use it as a capability to continue the upload. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
 
 ## Browser integration (source preview)
 
@@ -46,7 +46,7 @@ The native host executable is produced separately during final packaging:
 Copy `dist\ssdm-native-host.exe` into the application install directory, load the matching extension directory as an unpacked extension, then register the host from a current-user PowerShell session. Pass all Chromium extension IDs (Chrome, Edge, and Brave) returned by each browser's extension details page:
 
 ```powershell
-.\browser\install-browser-host.ps1 -InstallDir "C:\Program Files\Ss Download Manager" -ChromiumExtensionIds @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+.\browser\install-browser-host.ps1 -InstallDir "C:\Program Files\Ss Download Manager" -ChromiumExtensionIds @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","cccccccccccccccccccccccccccccccc")
 ```
 
 Firefox uses the fixed extension ID `ss-download-manager@heshamzegoo`; the installer registers the host for Firefox as well. The native host manifest is generated for the actual install path. These source extensions are not yet store-signed or automatically installed; final application packaging will include host installation and browser-specific extension distribution. Browser downloads are not silently cancelled or duplicated: links are sent when the user chooses an Ss Download Manager context-menu action.
