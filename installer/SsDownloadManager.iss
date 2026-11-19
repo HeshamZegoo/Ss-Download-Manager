@@ -30,7 +30,7 @@ Source: "..\browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignorev
 Source: "..\tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
 [Registry]
-Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "SsDownloadManager"; ValueData: """{app}\\SsDownloadManager.exe"" --background"; Tasks: startup; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SsDownloadManager"; ValueData: """{app}\SsDownloadManager.exe"" --background"; Tasks: startup; Flags: uninsdeletevalue
 [Icons]
 Name: "{group}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"
 Name: "{autodesktop}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"; Tasks: desktopicon
