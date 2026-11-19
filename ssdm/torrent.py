@@ -157,6 +157,14 @@ class TorrentManager(QObject):
         except Exception as exc:
             self.error.emit(str(exc))
 
+    @staticmethod
+    def estimate_eta(total: int, downloaded: int, download_rate: int):
+        remaining = max(0, int(total) - int(downloaded))
+        rate = max(0, int(download_rate))
+        if remaining == 0 and int(total) > 0:
+            return 0
+        return (remaining + rate - 1) // rate if rate > 0 else None
+
     def _emit_status(self):
         rows = []
         for info_hash, handle in list(self.handles.items()):
@@ -173,10 +181,8 @@ class TorrentManager(QObject):
                 "total": total,
                 "download_rate": int(getattr(status, "download_rate", 0) or 0),
                 "upload_rate": int(getattr(status, "upload_rate", 0) or 0),
-                "eta_seconds": (
-                    max(0, int((total - done) / int(getattr(status, "download_rate", 0))))
-                    if int(getattr(status, "download_rate", 0) or 0) > 0 and total > done else
-                    (0 if total > 0 and done >= total else None)
+                "eta_seconds": self.estimate_eta(
+                    total, done, int(getattr(status, "download_rate", 0) or 0)
                 ),
                 "seeds": int(getattr(status, "num_seeds", 0) or 0),
                 "peers": int(getattr(status, "num_peers", 0) or 0),
