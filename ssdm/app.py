@@ -312,7 +312,7 @@ class MainWindow(QMainWindow):
             return
         self._grabber_open = True
         folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
-        self.web_view.page().runJavaScript("window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ");")
+        self.web_view.page().runJavaScript("window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ", " + json.dumps(bool(self.grabber_remember_location)) + ");")
         escaped = json.dumps("\n".join(urls), ensure_ascii=False)
         self.web_view.page().runJavaScript(
             "if(window.ssdmOpenGrabber) window.ssdmOpenGrabber(" + escaped + ");"
