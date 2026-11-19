@@ -230,12 +230,13 @@ class MainWindow(QMainWindow):
 
 
     def _ingest_browser_inbox(self):
-        if not self.browser_inbox.exists():
-            return
         processing = self.browser_inbox.with_suffix(".processing")
-        try:
-            self.browser_inbox.replace(processing)
-        except OSError:
+        if self.browser_inbox.exists():
+            try:
+                self.browser_inbox.replace(processing)
+            except OSError:
+                return
+        elif not processing.exists():
             return
         added = 0
         try:
