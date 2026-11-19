@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
 from .uploader import UploadJob
 from .sftp_uploader import SFTPUploadJob
+from .ftp_uploader import FTPUploadJob
 from .video import VideoDownloadJob
 
 APP_NAME = "Ss Download Manager"
@@ -558,14 +559,16 @@ class MainWindow(QMainWindow):
             return
         protocol, ok = QInputDialog.getItem(
             self, "Upload protocol", "Choose upload destination type:",
-            ["HTTP PUT / WebDAV", "SFTP"], 0, False
+            ["HTTP PUT / WebDAV", "SFTP", "FTP", "FTPS"], 0, False
         )
         if not ok:
             return
         destination, ok = QInputDialog.getText(
             self, "Upload destination",
             "HTTP(S) PUT URL:" if protocol.startswith("HTTP") else
-            "SFTP URL (host key must already be trusted): sftp://user@host:22/remote/path"
+            ("SFTP URL (host key must already be trusted): sftp://user@host:22/remote/path"
+             if protocol == "SFTP" else
+             "FTP/FTPS URL: ftp://user@host:21/remote/path or ftps://user@host:21/remote/path")
         )
         if not ok or not destination.strip():
             return
@@ -574,12 +577,23 @@ class MainWindow(QMainWindow):
             if parsed.scheme not in ("http", "https") or not parsed.netloc:
                 QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP or HTTPS URL.")
                 return
-        else:
+            password = ""
+        elif protocol == "SFTP":
             if parsed.scheme != "sftp" or not parsed.hostname or not parsed.username or not parsed.path:
                 QMessageBox.warning(self, "Invalid destination", "Use sftp://username@host:22/remote/path")
                 return
             password, ok = QInputDialog.getText(
                 self, "SFTP authentication", "Password (not saved):",
+                QLineEdit.EchoMode.Password
+            )
+            if not ok:
+                return
+        else:
+            if parsed.scheme != protocol.lower() or not parsed.hostname or not parsed.path:
+                QMessageBox.warning(self, "Invalid destination", f"Use {protocol.toLowerCase()}://username@host:21/remote/path")
+                return
+            password, ok = QInputDialog.getText(
+                self, f"{protocol} authentication", "Password (not saved):",
                 QLineEdit.EchoMode.Password
             )
             if not ok:
@@ -592,8 +606,10 @@ class MainWindow(QMainWindow):
         )
         if protocol.startswith("HTTP"):
             job = UploadJob(source, destination.strip(), *callbacks)
-        else:
+        elif protocol == "SFTP":
             job = SFTPUploadJob(source, destination.strip(), password, *callbacks)
+        else:
+            job = FTPUploadJob(source, destination.strip(), password, *callbacks)
         self.upload_jobs[upload_id] = job
         size = Path(source).stat().st_size
         self.records.insert(0, {
