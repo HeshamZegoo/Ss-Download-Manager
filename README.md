@@ -42,9 +42,7 @@ The release artifact includes `Ss-Download-Manager-Setup.exe`. Run it once: it i
 
 **One browser-security step remains:** Chromium browsers require the user to enable Developer mode and click **Load unpacked**, then select the installed `browser\\chromium` folder. Firefox requires **Load Temporary Add-on** and selecting `browser\\firefox\\manifest.json`; temporary Firefox add-ons are removed when Firefox closes. Permanent Firefox distribution requires Mozilla signing. This confirmation is enforced by browser security; a normal desktop installer cannot silently bypass it. The installer writes exact instructions to `Browser-Setup.txt`.
 
-The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. The native host sends validated HTTP(S) URLs to the desktop application's local inbox.
-
-Browser downloads are not silently intercepted: the user chooses an Ss Download Manager context-menu action.
+The extensions add toolbar and context-menu actions to send the current page, a link, or selected URL text to Ss Download Manager. They can also watch newly created HTTP(S) browser downloads and hand the URL to the desktop application through native messaging. The browser's download is cancelled only after the desktop native host confirms receipt. This behavior requires the extension to be loaded and the desktop app/native host to be installed.
 
 ## Tests
 
@@ -52,7 +50,7 @@ Browser downloads are not silently intercepted: the user chooses an Ss Download 
 python -m unittest discover -s tests -v
 ```
 
-On pushes to `main` and manual workflow runs, GitHub Actions first validates the source and then builds the Windows desktop EXE, native-messaging host, and browser extension ZIPs. Download the `Ss-Download-Manager-Windows` artifact from the workflow run; artifacts are retained for 30 days.
+Pushes to `main` run source validation and tests only. The Windows EXE/setup packaging job is deliberately manual (`workflow_dispatch`) and is reserved for the final release step after all requested features and tests are complete.
 
 ## Limitations
 
