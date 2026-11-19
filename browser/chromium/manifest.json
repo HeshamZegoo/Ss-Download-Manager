@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Ss Download Manager Integration",
+  "version": "1.0.0",
+  "description": "Send browser downloads and links to Ss Download Manager.",
+  "permissions": ["contextMenus", "downloads", "nativeMessaging", "notifications"],
+  "background": {"service_worker": "service_worker.js"},
+  "icons": {},
+  "minimum_chrome_version": "105"
+}
