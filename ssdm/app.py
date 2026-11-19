@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
 from .uploader import UploadJob
+from .sftp_uploader import SFTPUploadJob
 from .video import VideoDownloadJob
 
 APP_NAME = "Ss Download Manager"
@@ -504,22 +505,44 @@ class MainWindow(QMainWindow):
         source, _ = QFileDialog.getOpenFileName(self, "Choose file to upload")
         if not source:
             return
+        protocol, ok = QInputDialog.getItem(
+            self, "Upload protocol", "Choose upload destination type:",
+            ["HTTP PUT / WebDAV", "SFTP"], 0, False
+        )
+        if not ok:
+            return
         destination, ok = QInputDialog.getText(
-            self, "Upload destination", "HTTP(S) PUT destination URL (WebDAV or pre-signed URL):"
+            self, "Upload destination",
+            "HTTP(S) PUT URL:" if protocol.startswith("HTTP") else
+            "SFTP URL (host key must already be trusted): sftp://user@host:22/remote/path"
         )
         if not ok or not destination.strip():
             return
         parsed = urlparse(destination.strip())
-        if parsed.scheme not in ("http", "https") or not parsed.netloc:
-            QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP or HTTPS upload URL.")
-            return
+        if protocol.startswith("HTTP"):
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP or HTTPS URL.")
+                return
+        else:
+            if parsed.scheme != "sftp" or not parsed.hostname or not parsed.username or not parsed.path:
+                QMessageBox.warning(self, "Invalid destination", "Use sftp://username@host:22/remote/path")
+                return
+            password, ok = QInputDialog.getText(
+                self, "SFTP authentication", "Password (not saved):",
+                QLineEdit.EchoMode.Password
+            )
+            if not ok:
+                return
         upload_id = uuid.uuid4().hex
-        job = UploadJob(
-            source, destination.strip(),
+        callbacks = (
             lambda sent, total, speed, uid=upload_id: self.signals.upload_progress.emit(uid, sent, total, speed),
             lambda path, uid=upload_id: self.signals.upload_finished.emit(uid),
             lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
         )
+        if protocol.startswith("HTTP"):
+            job = UploadJob(source, destination.strip(), *callbacks)
+        else:
+            job = SFTPUploadJob(source, destination.strip(), password, *callbacks)
         self.upload_jobs[upload_id] = job
         size = Path(source).stat().st_size
         self.records.insert(0, {
