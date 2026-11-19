@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QDateTimeEdit,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
     QMessageBox, QPushButton, QProgressBar, QTableWidget, QTableWidgetItem, QInputDialog,
-    QToolBar, QVBoxLayout, QWidget, QLabel
+    QToolBar, QVBoxLayout, QWidget, QLabel, QSystemTrayIcon, QMenu
 )
 
 from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
@@ -157,10 +157,31 @@ class MainWindow(QMainWindow):
         search_bar.addWidget(self.search)
         self.addToolBar(search_bar)
         self.refresh()
+        self.tray = None
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            self.tray = QSystemTrayIcon(self)
+            self.tray.setToolTip(APP_NAME)
+            tray_menu = QMenu()
+            show_action = tray_menu.addAction("Show Ss Download Manager")
+            show_action.triggered.connect(self.showNormal)
+            tray_menu.addSeparator()
+            exit_action = tray_menu.addAction("Exit")
+            exit_action.triggered.connect(QApplication.quit)
+            self.tray.setContextMenu(tray_menu)
+            self.tray.show()
         self.queue_timer = QTimer(self)
         self.queue_timer.setInterval(5000)
         self.queue_timer.timeout.connect(self._schedule_queue)
         self.queue_timer.start()
+
+    def closeEvent(self, event):
+        if self.tray and self.tray.isVisible():
+            self.hide()
+            self.tray.showMessage(APP_NAME, "Still running in the system tray.",
+                                  QSystemTrayIcon.MessageIcon.Information, 3000)
+            event.ignore()
+            return
+        event.accept()
 
     def _load(self):
         try:
@@ -557,6 +578,9 @@ class MainWindow(QMainWindow):
         self._save()
         self.refresh()
         self.statusBar().showMessage("Download completed", 5000)
+        if self.tray:
+            self.tray.showMessage(APP_NAME, f"{Path(path).name} downloaded successfully.",
+                                  QSystemTrayIcon.MessageIcon.Information, 5000)
         self._schedule_queue()
 
     def on_failed(self, job_id, error):
@@ -568,7 +592,11 @@ class MainWindow(QMainWindow):
             record["error"] = error
         self._save()
         self.refresh()
-        QMessageBox.warning(self, "Download failed", error)
+        if self.tray:
+            self.tray.showMessage(APP_NAME, f"Download failed: {error}",
+                                  QSystemTrayIcon.MessageIcon.Warning, 7000)
+        else:
+            QMessageBox.warning(self, "Download failed", error)
         self._schedule_queue()
 
     def _by_id(self, job_id):
