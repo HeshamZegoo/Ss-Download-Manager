@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt, QTimer, Signal, QObject, Slot
-from PySide6.QtGui import QAction, QDesktopServices
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtCore import QUrl, QSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebChannel import QWebChannel
@@ -93,6 +93,18 @@ class HtmlBridge(QObject):
         super().__init__(window)
         self.window = window
 
+    @Slot(str, result=str)
+    def chooseDownloadFolder(self, current):
+        return self.window.choose_grabber_folder(current)
+
+    @Slot(str, str, bool)
+    def addGrabberDownloads(self, urls, folder, remember):
+        self.window.add_grabber_downloads(urls, folder, remember)
+
+    @Slot()
+    def grabberClosed(self):
+        self.window._grabber_open = False
+
     @Slot()
     def requestRefresh(self):
         self.window.refresh()
@@ -142,6 +154,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_NAME)
+        icon_path = Path(__file__).parent / "assets" / "SsDownloadManager.png"
+        if icon_path.is_file():
+            self.setWindowIcon(QIcon(str(icon_path)))
         self.resize(1100, 700)
         self.setMinimumSize(820, 520)
         self.records = []
@@ -268,6 +283,85 @@ class MainWindow(QMainWindow):
         self.browser_poll.setInterval(700)
         self.browser_poll.timeout.connect(self._ingest_browser_inbox)
         self.browser_poll.start()
+        self._last_clipboard_text = ""
+        self._grabber_open = False
+        self.grabber_remember_location = self.settings.value("grabber_remember_location", False, type=bool)
+        self.grabber_download_dir = self.settings.value("grabber_download_dir", str(self.default_download_dir))
+        QApplication.clipboard().dataChanged.connect(self._on_clipboard_changed)
+
+    def _on_clipboard_changed(self):
+        if self._grabber_open:
+            return
+        try:
+            text = QApplication.clipboard().text().strip()
+        except Exception:
+            return
+        if not text or text == self._last_clipboard_text:
+            return
+        self._last_clipboard_text = text
+        urls = [line.strip() for line in text.splitlines() if urlparse(line.strip()).scheme in ("http", "https") and urlparse(line.strip()).netloc]
+        if not urls:
+            return
+        self._grabber_open = True
+        folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
+        self.web_view.page().runJavaScript("window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ");")
+        escaped = json.dumps("\n".join(urls), ensure_ascii=False)
+        self.web_view.page().runJavaScript(f"if(window.ssdmOpenGrabber) window.ssdmOpenGrabber({escaped});")
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        self.statusBar().showMessage(f"Link Grabber: {len(urls)} copied link(s) detected", 5000)
+
+    def choose_grabber_folder(self, current):
+        start = current or str(self.default_download_dir)
+        folder = QFileDialog.getExistingDirectory(self, "Choose download folder", start)
+        return folder or ""
+
+    def add_grabber_downloads(self, raw_urls, folder, remember):
+        urls = []
+        for line in raw_urls.splitlines():
+            url = line.strip()
+            parsed = urlparse(url)
+            if parsed.scheme in ("http", "https") and parsed.netloc and url not in urls:
+                urls.append(url)
+        if not urls:
+            QMessageBox.warning(self, "Link Grabber", "No valid HTTP or HTTPS links were found.")
+            return
+        target = Path(folder).expanduser() if folder.strip() else self.default_download_dir
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.warning(self, "Link Grabber", f"Cannot use this folder: {exc}")
+            return
+        if remember:
+            self.grabber_remember_location = True
+            self.grabber_download_dir = str(target)
+            self.settings.setValue("grabber_remember_location", True)
+            self.settings.setValue("grabber_download_dir", str(target))
+        else:
+            self.grabber_remember_location = False
+            self.settings.setValue("grabber_remember_location", False)
+        added = 0
+        for url in urls:
+            name = filename_from_url(url)
+            destination = str(target / name)
+            if any(r.get("url") == url and r.get("destination") == destination for r in self.records):
+                continue
+            if Path(destination).exists() or any(r.get("destination") == destination for r in self.records):
+                destination = str(target / f"{Path(name).stem}-{uuid.uuid4().hex[:8]}{Path(name).suffix}")
+            record = {
+                "id": uuid.uuid4().hex, "url": url, "name": name, "destination": destination,
+                "status": "Queued", "downloaded": 0, "total": None, "speed": 0,
+                "category": _category(name), "source": "link-grabber",
+            }
+            self.records.insert(0, record)
+            added += 1
+        if added:
+            self._save()
+            self.refresh()
+            self._schedule_queue()
+            self.statusBar().showMessage(f"Added {added} link(s) from Link Grabber", 5000)
+        self._grabber_open = False
 
     def show_about(self):
         QMessageBox.about(
