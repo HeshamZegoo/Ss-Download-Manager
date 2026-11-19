@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime
 import json
 import os
 import sys
@@ -14,7 +15,7 @@ from PySide6.QtCore import Qt, QTimer, Signal, QObject
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtCore import QUrl, QSettings
 from PySide6.QtWidgets import (
-    QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
+    QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QDateTimeEdit,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
     QMessageBox, QPushButton, QProgressBar, QTableWidget, QTableWidgetItem, QInputDialog,
     QToolBar, QVBoxLayout, QWidget, QLabel
@@ -122,6 +123,7 @@ class MainWindow(QMainWindow):
             ("Speed limit", self.configure_speed_limit),
             ("Move up", self.move_selected_up),
             ("Move down", self.move_selected_down),
+            ("Schedule", self.schedule_selected),
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
             ("▶ Resume", self.resume_selected),
@@ -155,6 +157,10 @@ class MainWindow(QMainWindow):
         search_bar.addWidget(self.search)
         self.addToolBar(search_bar)
         self.refresh()
+        self.queue_timer = QTimer(self)
+        self.queue_timer.setInterval(5000)
+        self.queue_timer.timeout.connect(self._schedule_queue)
+        self.queue_timer.start()
 
     def _load(self):
         try:
@@ -249,12 +255,40 @@ class MainWindow(QMainWindow):
 
     def _schedule_queue(self):
         active = len(self.jobs)
+        now = datetime.now()
         waiting = sorted(
-            (r for r in self.records if r.get("status") == "Queued"),
+            (r for r in self.records if r.get("status") == "Queued" or
+             (r.get("status") == "Scheduled" and _schedule_due(r, now))),
             key=lambda r: r.get("priority", 0), reverse=True,
         )
         for record in waiting[:max(0, self.max_active_downloads - active)]:
             self._start(record)
+
+    def schedule_selected(self):
+        record = self._selected()
+        if not record or record.get("status") in ("Downloading", "Completed"):
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Schedule download")
+        layout = QVBoxLayout(dialog)
+        editor = QDateTimeEdit(dialog)
+        editor.setCalendarPopup(True)
+        editor.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        editor.setDateTime(editor.dateTime().currentDateTime().addSecs(300))
+        layout.addWidget(QLabel("Start this download at:"))
+        layout.addWidget(editor)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        record["scheduled_at"] = editor.dateTime().toString("yyyy-MM-ddTHH:mm:ss")
+        record["status"] = "Scheduled"
+        self._save()
+        self.refresh()
 
     def move_selected_up(self):
         self._move_selected(-1)
@@ -558,6 +592,16 @@ class MainWindow(QMainWindow):
                     item.setToolTip(record.get("url", ""))
                 self.table.setItem(row, col, item)
         self.statusBar().showMessage(f"{len(self.records)} downloads · {sum(r['status'] == 'Downloading' for r in self.records)} active")
+
+
+def _schedule_due(record, now):
+    value = record.get("scheduled_at")
+    if not value:
+        return True
+    try:
+        return datetime.fromisoformat(value) <= now
+    except ValueError:
+        return True
 
 
 def _category(name):
