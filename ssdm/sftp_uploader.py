@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+import time
 from pathlib import Path
 from typing import Callable
 from urllib.parse import unquote, urlparse
@@ -48,6 +49,7 @@ class SFTPUploadJob:
                 raise ValueError("Use sftp://username@host:22/remote/path")
             total = self.source.stat().st_size
             sent_state = [0]
+            last_sample = [time.monotonic(), 0]
             client = paramiko.SSHClient()
             client.load_system_host_keys()
             client.set_missing_host_key_policy(paramiko.RejectPolicy())
@@ -67,7 +69,10 @@ class SFTPUploadJob:
                 sent_state[0] = sent
                 if self._cancel.is_set():
                     raise OSError("Upload cancelled")
-                self.progress(sent, size, 0.0)
+                now = time.monotonic()
+                speed = (sent - last_sample[1]) / max(now - last_sample[0], 0.001)
+                last_sample[:] = [now, sent]
+                self.progress(sent, size, speed)
 
             sftp.put(str(self.source), remote_path, callback=callback, confirm=True)
             if self._cancel.is_set():
