@@ -32,6 +32,24 @@ python main.py
 
 Choose **Upload file**, select a local file, then choose HTTP PUT or SFTP. HTTP requires a destination URL that accepts PUT. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. Passwords are not saved.
 
+## Browser integration (source preview)
+
+The repository includes Chromium (Chrome, Edge, Brave) and Firefox extension source under `browser/`. The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. They communicate through the native-messaging host; the desktop app polls its local inbox and adds validated HTTP(S) URLs to the queue. This avoids a local HTTP listener.
+
+The native host executable is produced separately during final packaging:
+
+```powershell
+.\tools\build-native-host.ps1
+```
+
+Copy `dist\ssdm-native-host.exe` into the application install directory, load the matching extension directory as an unpacked extension, then register the host from a current-user PowerShell session. Pass all Chromium extension IDs (Chrome, Edge, and Brave) returned by each browser's extension details page:
+
+```powershell
+.\browser\install-browser-host.ps1 -InstallDir "C:\Program Files\Ss Download Manager" -ChromiumExtensionIds @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+```
+
+Firefox uses the fixed extension ID `ss-download-manager@heshamzegoo`; the installer registers the host for Firefox as well. The native host manifest is generated for the actual install path. These source extensions are not yet store-signed or automatically installed; final application packaging will include host installation and browser-specific extension distribution. Browser downloads are not silently cancelled or duplicated: links are sent when the user chooses an Ss Download Manager context-menu action.
+
 ## Tests
 
 ```powershell
@@ -42,10 +60,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- Browser extensions / browser integration and browser-captured links.
-- FTP/SFTP upload, upload queue/history, and resumable uploads.
-- Browser extension/native-messaging integration and polished settings/preferences.
-- Resumable uploads, FTP/FTPS, and richer upload queue controls.
+- FTP/FTPS uploads, resumable uploads, upload queue controls, and polished settings/preferences.
 
 ## Limitations
 
