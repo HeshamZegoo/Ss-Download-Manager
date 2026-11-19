@@ -72,14 +72,14 @@ class BrowserExtensionTests(unittest.TestCase):
     def test_browser_downloads_notify_tray_and_installer_starts_in_background(self):
         app_source = (ROOT / "ssdm/app.py").read_text()
         self.assertIn("self.tray.showMessage(APP_NAME, detail", app_source)
-        self.assertIn("new browser download(s) added", app_source)
+        self.assertIn("new browser downloads added", app_source)
         self.assertIn("Save to:", app_source)
         self.assertIn("Save location:", app_source)
         self.assertIn("record.get", app_source)
         installer = (ROOT / "installer/SsDownloadManager.iss").read_text()
         self.assertIn('ValueName: "SsDownloadManager"', installer)
-        self.assertIn('--background', installer)
-        self.assertNotIn('; Tasks: startup', installer)
+        self.assertIn("--background", installer)
+        self.assertNotIn("; Tasks: startup", installer)
 
 
 if __name__ == "__main__":
