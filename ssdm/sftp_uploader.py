@@ -65,16 +65,31 @@ class SFTPUploadJob:
             sftp = client.open_sftp()
             remote_path = unquote(parsed.path)
 
-            def callback(sent, size):
-                sent_state[0] = sent
-                if self._cancel.is_set():
-                    raise OSError("Upload cancelled")
-                now = time.monotonic()
-                speed = (sent - last_sample[1]) / max(now - last_sample[0], 0.001)
-                last_sample[:] = [now, sent]
-                self.progress(sent, size, speed)
-
-            sftp.put(str(self.source), remote_path, callback=callback, confirm=True)
+            try:
+                remote_size = sftp.stat(remote_path).st_size
+            except (OSError, IOError):
+                remote_size = 0
+            if remote_size > total:
+                raise ValueError("Remote partial file is larger than the local file; remove it and retry")
+            sent_state[0] = remote_size
+            if remote_size < total:
+                mode = "r+b" if remote_size else "wb"
+                with self.source.open("rb") as local, sftp.open(remote_path, mode) as remote:
+                    local.seek(remote_size)
+                    remote.seek(remote_size)
+                    while True:
+                        if self._cancel.is_set():
+                            raise OSError("Upload cancelled")
+                        chunk = local.read(256 * 1024)
+                        if not chunk:
+                            break
+                        remote.write(chunk)
+                        sent_state[0] += len(chunk)
+                        now = time.monotonic()
+                        speed = (sent_state[0] - last_sample[1]) / max(now - last_sample[0], 0.001)
+                        last_sample[:] = [now, sent_state[0]]
+                        self.progress(sent_state[0], total, speed)
+                    remote.flush()
             if self._cancel.is_set():
                 return
             self.progress(total, total, 0.0)
