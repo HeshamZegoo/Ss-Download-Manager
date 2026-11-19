@@ -56,7 +56,7 @@ class AddDialog(QDialog):
         self.setMinimumWidth(520)
         self.url = QLineEdit()
         self.url.setPlaceholderText("https://example.com/file.zip")
-        self.folder = QLineEdit(str(default_folder or (Path.home() / "Downloads"))))
+        self.folder = QLineEdit(str(default_folder or (Path.home() / "Downloads")))
         browse = QPushButton("Browse…")
         browse.clicked.connect(self.choose_folder)
         folder_row = QHBoxLayout()
