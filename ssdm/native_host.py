@@ -21,18 +21,29 @@ INBOX = APP_DIR / "browser_inbox.jsonl"
 MAX_MESSAGE = 1024 * 1024
 
 
+def _read_exact(stream, size: int, *, allow_eof: bool = False):
+    """Read exactly size bytes from a pipe, which may return short chunks."""
+    chunks = []
+    remaining = size
+    while remaining:
+        chunk = stream.read(remaining)
+        if not chunk:
+            if allow_eof and not chunks:
+                return None
+            raise ValueError("Incomplete native-messaging frame")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)
+
+
 def _read_message(stream):
-    header = stream.read(4)
-    if not header:
+    header = _read_exact(stream, 4, allow_eof=True)
+    if header is None:
         return None
-    if len(header) != 4:
-        raise ValueError("Incomplete native-messaging header")
     size = struct.unpack("<I", header)[0]
     if size <= 0 or size > MAX_MESSAGE:
         raise ValueError("Invalid native-messaging message size")
-    payload = stream.read(size)
-    if len(payload) != size:
-        raise ValueError("Incomplete native-messaging payload")
+    payload = _read_exact(stream, size)
     return json.loads(payload.decode("utf-8"))
 
 
