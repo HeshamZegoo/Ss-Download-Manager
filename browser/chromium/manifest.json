@@ -3,8 +3,17 @@
   "name": "Ss Download Manager Integration",
   "version": "1.0.0",
   "description": "Send browser downloads and links to Ss Download Manager. Developed by HeshamZegoo.",
-  "permissions": ["activeTab", "contextMenus", "nativeMessaging"],
-  "background": {"service_worker": "service_worker.js"},
-  "action": {"default_title": "Ss Download Manager"},
-  "minimum_chrome_version": "105"
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "action": {
+    "default_title": "Ss Download Manager"
+  },
+  "minimum_chrome_version": "105",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA++aPSUbqV1j+Y0J/Ue0iwikJkMx/bPCbhtLc83eW4XVXuE/aRIMp1Nsy6WlU7LYLq1Wn8Jy+SKGiZoSTLdu1O+G/HC2SOI3e63ycnNL4MJYQinSu/lHxMw151VZZL+0X10uw5UKzlD+PN4LTWNWU2KXRjUqoh3chZGx4LyxKvYI7AT8NeiVswYRE0TWwbybTKNn559IMN4LDgQScdhWhKrnN0WzfGkWBnBngH1eOr4iMfSjVosBhZL8qP1NWhSHhj20wuqRQqQ5ogwjmToHSY+LtcWUVinSqGuIIo0cz1rHl38IzqSN/AUfV977H4aln+v8d8c7hI414nqQPRIbu9wIDAQAB"
 }
