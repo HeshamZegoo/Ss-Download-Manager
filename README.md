@@ -13,6 +13,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Queue ordering controls, a configurable simultaneous-download limit, and a clipboard URL monitor with user confirmation.
 - Scheduled download start times, an optional aggregate download speed cap, and system-tray notifications/background operation where supported.
 - Upload queue with configurable concurrency, ordering, progress, cancellation, and pause/resume controls; SFTP and FTP/FTPS continue from the remote partial file when supported, while plain HTTP PUT restarts from the beginning.
+- Resumable HTTP uploads using the tus 1.0 protocol, including persisted upload-session URLs so interrupted transfers can continue after restarting the app.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
@@ -30,7 +31,7 @@ python main.py
 
 ## Uploading
 
-Choose **Upload file**, select a local file, then choose HTTP PUT, SFTP, FTP, or FTPS. HTTP requires a destination URL that accepts PUT. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
+Choose **Upload file**, select a local file, then choose HTTP PUT, TUS resumable, SFTP, FTP, or FTPS. HTTP PUT requires a destination URL that accepts PUT. TUS requires a server endpoint implementing the tus 1.0 protocol; its session URL is stored in the local transfer history to support restart recovery. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
 
 ## Browser integration (source preview)
 
@@ -57,10 +58,6 @@ python -m unittest discover -s tests -v
 ```
 
 GitHub Actions currently runs validation only. Windows EXE packaging is deliberately deferred until the requested feature set is implemented and tested.
-
-## Still to implement
-
-- Resumable HTTP uploads for servers implementing the tus protocol.
 
 ## Limitations
 
