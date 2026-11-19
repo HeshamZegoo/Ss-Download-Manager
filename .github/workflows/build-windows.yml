@@ -71,14 +71,24 @@ jobs:
         run: |
           ./tools/package-browser-extensions.ps1
           Copy-Item browser/install-browser-host.ps1 dist/browser-extensions/
+          Copy-Item COPYRIGHT.txt dist/
           @"
-          Ss Download Manager - Windows package
-          1. Run SsDownloadManager.exe.
-          2. Install the Chrome/Edge/Brave extension from the Chromium extension package.
-          3. Install the Firefox extension from the Firefox extension package.
-          4. Copy ssdm-native-host.exe beside the application executable.
-          5. Run install-browser-host.ps1 in PowerShell with the install directory and the extension IDs for Chrome, Edge, and Brave.
+          Ss Download Manager - Windows setup
+          Run Ss-Download-Manager-Setup.exe. The installer installs the app, native messaging host,
+          and browser integration files. It registers the native bridge for Chrome, Edge, Brave, and Firefox.
+          For Chromium browsers, enable Developer mode and choose Load unpacked from the installed
+          browser\\chromium folder. Firefox requires temporary add-on loading unless the extension
+          is signed and published by Mozilla. See Browser-Setup.txt after installation.
           "@ | Set-Content dist/README-Install.txt
+      - name: Build Windows setup installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          $iscc = Join-Path $env:ProgramFiles(x86) "Inno Setup 6\\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
+          & $iscc installer/SsDownloadManager.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+
       - name: Generate SHA-256 checksums
         shell: pwsh
         run: |
