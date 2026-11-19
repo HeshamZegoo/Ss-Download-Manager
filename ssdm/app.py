@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
         self.max_active_uploads = self.settings.value("max_active_uploads", 2, type=int)
+        self.dark_mode = self.settings.value("dark_mode", False, type=bool)
         self.default_download_dir = Path(self.settings.value("download_dir", str(Path.home() / "Downloads"))).expanduser()
         self.default_download_dir.mkdir(parents=True, exist_ok=True)
         self.max_connections = self.settings.value("max_connections", 8, type=int)
@@ -138,6 +139,7 @@ class MainWindow(QMainWindow):
             ("Queue limit", self.configure_queue_limit),
             ("Upload queue limit", self.configure_upload_queue_limit),
             ("Speed limit", self.configure_speed_limit),
+            ("Toggle dark mode", self.toggle_theme),
             ("Move up", self.move_selected_up),
             ("Move down", self.move_selected_down),
             ("Schedule", self.schedule_selected),
@@ -162,16 +164,8 @@ class MainWindow(QMainWindow):
         self.search.setPlaceholderText("Search downloads…")
         self.search.textChanged.connect(self.refresh)
         self.statusBar().showMessage("Ready")
-        self.setStyleSheet("""
-            QMainWindow { background: #f3f5fb; }
-            QTableWidget { background: white; border: 1px solid #e0e5f0; gridline-color: #edf0f6; }
-            QHeaderView::section { background: #eef1f8; padding: 9px; border: 0; font-weight: 600; }
-            QToolBar { background: white; border: 0; border-bottom: 1px solid #e0e5f0; spacing: 8px; padding: 8px; }
-            QToolButton { padding: 8px 10px; border-radius: 7px; }
-            QToolButton:hover { background: #e8edff; }
-            QLineEdit { padding: 8px; border: 1px solid #d9deeb; border-radius: 7px; }
-        """)
-        self.addToolBarBreak()
+        self.apply_theme()
+
         search_bar = QToolBar("Search")
         search_bar.addWidget(QLabel("  Filter: "))
         search_bar.addWidget(self.search)
@@ -325,6 +319,42 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def toggle_theme(self):
+        self.dark_mode = not self.dark_mode
+        self.settings.setValue("dark_mode", self.dark_mode)
+        self.apply_theme()
+
+    def apply_theme(self):
+        if self.dark_mode:
+            self.setStyleSheet("""
+                QMainWindow { background: #151a22; color: #e8edf5; }
+                QWidget { color: #e8edf5; }
+                QTableWidget { background: #202733; alternate-background-color: #252e3b; color: #e8edf5; border: 1px solid #354153; gridline-color: #303b4b; selection-background-color: #344d70; }
+                QHeaderView::section { background: #273242; color: #f2f5fa; padding: 9px; border: 0; font-weight: 600; }
+                QToolBar { background: #1d2633; color: #e8edf5; border: 0; border-bottom: 1px solid #354153; spacing: 8px; padding: 8px; }
+                QToolButton { color: #e8edf5; padding: 8px 10px; border-radius: 7px; }
+                QToolButton:hover { background: #34445a; }
+                QLineEdit, QComboBox, QDateTimeEdit { background: #202a37; color: #f2f5fa; border: 1px solid #435168; border-radius: 7px; padding: 8px; }
+                QPushButton { background: #2d3d52; color: #f5f7fb; border: 1px solid #455872; border-radius: 7px; padding: 7px 12px; }
+                QPushButton:hover { background: #3b506c; }
+                QStatusBar { background: #1d2633; color: #cbd5e1; }
+                QMenu { background: #202a37; color: #e8edf5; border: 1px solid #435168; }
+                QMenu::item:selected { background: #34445a; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QMainWindow { background: #f3f5fb; color: #1d2939; }
+                QTableWidget { background: white; color: #1d2939; border: 1px solid #e0e5f0; gridline-color: #edf0f6; selection-background-color: #dce7ff; }
+                QHeaderView::section { background: #eef1f8; color: #1d2939; padding: 9px; border: 0; font-weight: 600; }
+                QToolBar { background: white; color: #1d2939; border: 0; border-bottom: 1px solid #e0e5f0; spacing: 8px; padding: 8px; }
+                QToolButton { color: #1d2939; padding: 8px 10px; border-radius: 7px; }
+                QToolButton:hover { background: #e8edff; }
+                QLineEdit, QComboBox, QDateTimeEdit { background: white; color: #1d2939; border: 1px solid #d9deeb; border-radius: 7px; padding: 8px; }
+                QPushButton { background: #eef2fa; color: #1d2939; border: 1px solid #d9deeb; border-radius: 7px; padding: 7px 12px; }
+                QPushButton:hover { background: #e1e9f8; }
+                QStatusBar { background: #f3f5fb; color: #475467; }
+            """)
 
     def configure_download_folder(self):
         folder = QFileDialog.getExistingDirectory(
