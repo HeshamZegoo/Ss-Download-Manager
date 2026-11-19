@@ -8,6 +8,7 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyPublisher}
 DefaultDirName={localappdata}\Programs\Ss Download Manager
 DefaultGroupName={#MyAppName}
+SetupIconFile=..\dist\SsDownloadManager.ico
 UninstallDisplayIcon={app}\SsDownloadManager.exe
 OutputDir=dist
 OutputBaseFilename=Ss-Download-Manager-Setup
@@ -20,8 +21,9 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 Name: "browserhelper"; Description: "Prepare browser integration"; GroupDescription: "Browser integration:"; Flags: checkedonce
 [Files]
-Source: "..\dist\SsDownloadManager.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\SsDownloadManager\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\dist\ssdm-native-host.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\SsDownloadManager.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\browser\chromium\*"; DestDir: "{app}\browser\chromium"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
