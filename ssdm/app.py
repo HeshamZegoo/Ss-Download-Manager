@@ -92,10 +92,10 @@ class MainWindow(QMainWindow):
         self.jobs = {}
         self.upload_jobs = {}
         self.upload_passwords = {}
-        self.max_active_uploads = self.settings.value("max_active_uploads", 2, type=int)
         self.video_jobs = {}
         self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
+        self.max_active_uploads = self.settings.value("max_active_uploads", 2, type=int)
         self.default_download_dir = Path(self.settings.value("download_dir", str(Path.home() / "Downloads"))).expanduser()
         self.default_download_dir.mkdir(parents=True, exist_ok=True)
         self.max_connections = self.settings.value("max_connections", 8, type=int)
