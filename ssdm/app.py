@@ -11,9 +11,11 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import urlparse
 
-from PySide6.QtCore import Qt, QTimer, Signal, QObject
+from PySide6.QtCore import Qt, QTimer, Signal, QObject, Slot
 from PySide6.QtGui import QAction, QDesktopServices
 from PySide6.QtCore import QUrl, QSettings
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QDateTimeEdit,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
@@ -86,6 +88,56 @@ class AddDialog(QDialog):
         return self.url.text().strip(), self.folder.text().strip()
 
 
+class HtmlBridge(QObject):
+    def __init__(self, window):
+        super().__init__(window)
+        self.window = window
+
+    @Slot()
+    def requestRefresh(self):
+        self.window.refresh()
+
+    @Slot(str, str, int)
+    def addDownload(self, url, category, connections):
+        self.window.add_download_from_html(url, category, connections)
+
+    @Slot(str, str)
+    def action(self, record_id, action):
+        self.window.select_record_by_id(record_id)
+        if action == "pause":
+            self.window.pause_selected()
+        elif action == "resume":
+            self.window.resume_selected()
+        elif action == "delete":
+            self.window.remove_selected()
+        elif action == "schedule":
+            self.window.schedule_selected()
+
+    @Slot()
+    def pauseAll(self):
+        self.window.pause_all()
+
+    @Slot()
+    def clearDone(self):
+        self.window.clear_completed()
+
+    @Slot()
+    def uploadFile(self):
+        self.window.upload_file()
+
+    @Slot()
+    def grabVideo(self):
+        self.window.grab_video()
+
+    @Slot()
+    def options(self):
+        self.window.configure_connections()
+
+    @Slot()
+    def toggleTheme(self):
+        self.window.toggle_theme()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -131,11 +183,21 @@ class MainWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for col in range(1, 7):
             self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
-        self.setCentralWidget(self.table)
+        self.table.hide()
+        self.web_view = QWebEngineView(self)
+        self.web_channel = QWebChannel(self.web_view.page())
+        self.html_bridge = HtmlBridge(self)
+        self.web_channel.registerObject("bridge", self.html_bridge)
+        self.web_view.page().setWebChannel(self.web_channel)
+        self.web_view.loadFinished.connect(lambda ok: self.refresh() if ok else None)
+        self.setCentralWidget(self.web_view)
+        ui_file = Path(__file__).parent / "ui" / "idm-modern.html"
+        self.web_view.setUrl(QUrl.fromLocalFile(str(ui_file.resolve())))
 
         toolbar = QToolBar("Downloads")
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
+        toolbar.hide()
         for label, handler in [
             ("＋ Add URL", self.add_download),
             ("＋ Batch URLs", self.add_batch_downloads),
@@ -180,6 +242,7 @@ class MainWindow(QMainWindow):
         search_bar.addWidget(QLabel("  Filter: "))
         search_bar.addWidget(self.search)
         self.addToolBar(search_bar)
+        search_bar.hide()
         self.refresh()
         self.tray = None
         if QSystemTrayIcon.isSystemTrayAvailable():
@@ -334,7 +397,7 @@ class MainWindow(QMainWindow):
             lambda path, jid=job_id: self.signals.finished.emit(jid, path),
             lambda error, jid=job_id: self.signals.failed.emit(jid, error),
             lambda jid=job_id: self.signals.paused.emit(jid),
-            max_connections=self.max_connections,
+            max_connections=int(record.get("connections", self.max_connections)),
         )
         self.jobs[job_id] = job
         self._save()
@@ -1009,8 +1072,7 @@ class MainWindow(QMainWindow):
             values = [
                 record["name"], record.get("category", "Other"), record["status"],
                 f"{(record['downloaded'] / record['total'] * 100):.1f}%" if record.get("total") else "—",
-                _human(record.get("downloaded", 0)),
-                _speed(record.get("speed", 0)),
+                _human(record.get("downloaded", 0)), _speed(record.get("speed", 0)),
                 str(Path(record["destination"]).parent),
             ]
             for col, value in enumerate(values):
@@ -1018,7 +1080,50 @@ class MainWindow(QMainWindow):
                 if col == 0:
                     item.setToolTip(record.get("url", ""))
                 self.table.setItem(row, col, item)
+        if hasattr(self, "web_view"):
+            payload = [{
+                "id": r.get("id"), "name": r.get("name"), "category": r.get("category", "Other"),
+                "status": r.get("status"), "downloaded": r.get("downloaded", 0),
+                "total": r.get("total"), "speed": r.get("speed", 0),
+                "destination": r.get("destination", ""), "error": r.get("error", ""),
+                "connections": r.get("connections", self.max_connections),
+            } for r in self.records]
+            encoded = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
+            self.web_view.page().runJavaScript("if(window.ssdmRender) window.ssdmRender(" + encoded + ");")
         self.statusBar().showMessage(f"{len(self.records)} downloads · {sum(r['status'] == 'Downloading' for r in self.records)} active")
+
+    def select_record_by_id(self, record_id):
+        visible = [r for r in self.records if self.search.text().lower() in r["name"].lower()]
+        index = next((i for i, r in enumerate(visible) if r.get("id") == record_id), -1)
+        self.table.clearSelection()
+        if index >= 0:
+            self.table.selectRow(index)
+
+    def add_download_from_html(self, url, category, connections):
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            QMessageBox.warning(self, "Invalid URL", "Enter a valid HTTP or HTTPS URL.")
+            return
+        name = filename_from_url(url)
+        destination = str(self.default_download_dir / name)
+        if any(r.get("destination") == destination for r in self.records):
+            destination = str(self.default_download_dir / f"{Path(name).stem}-{uuid.uuid4().hex[:8]}{Path(name).suffix}")
+        record = {
+            "id": uuid.uuid4().hex, "url": url.strip(), "name": name, "destination": destination,
+            "status": "Queued", "downloaded": 0, "total": None, "speed": 0,
+            "category": _category(name), "connections": max(1, min(int(connections), 32)),
+        }
+        self.records.insert(0, record)
+        self._save()
+        self.refresh()
+        self._start(record)
+
+    def clear_completed(self):
+        done = [r for r in self.records if r.get("status") == "Completed"]
+        for record in done:
+            self.records.remove(record)
+        self._save()
+        self.refresh()
 
 
 def _schedule_due(record, now):
