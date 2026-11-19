@@ -103,8 +103,12 @@ class DownloadJob:
             else:
                 self._run_single()
         except Exception as exc:
-            if not self._cancel.is_set() and not self._pause.is_set():
-                self.failed(str(exc))
+            if self._cancel.is_set():
+                return
+            if self._pause.is_set():
+                self.paused()
+                return
+            self.failed(str(exc))
 
     def _run_single(self):
         offset = self.part_path.stat().st_size if self.part_path.exists() else 0
