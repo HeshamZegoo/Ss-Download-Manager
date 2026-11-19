@@ -1,6 +1,7 @@
 import re
 import tempfile
 import threading
+import time
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,12 +28,19 @@ class _RangeHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(end - start + 1))
             self.send_header("Accept-Ranges", "bytes")
             self.end_headers()
-            self.wfile.write(PAYLOAD[start:end + 1])
+            data = PAYLOAD[start:end + 1]
+            for offset in range(0, len(data), 16 * 1024):
+                self.wfile.write(data[offset:offset + 16 * 1024])
+                self.wfile.flush()
+                time.sleep(0.001)
         else:
             self.send_response(200)
             self.send_header("Content-Length", str(len(PAYLOAD)))
             self.end_headers()
-            self.wfile.write(PAYLOAD)
+            for offset in range(0, len(PAYLOAD), 16 * 1024):
+                self.wfile.write(PAYLOAD[offset:offset + 16 * 1024])
+                self.wfile.flush()
+                time.sleep(0.001)
 
     def log_message(self, *_args):
         pass
@@ -60,6 +68,28 @@ class DownloaderIntegrationTests(unittest.TestCase):
             )
             job.start()
             self.assertTrue(done.wait(15), "parallel download did not finish")
+            self.assertEqual(errors, [])
+            self.assertEqual(Path(destination).read_bytes(), PAYLOAD)
+
+    def test_segmented_download_can_pause_and_resume(self):
+        with tempfile.TemporaryDirectory() as folder:
+            destination = str(Path(folder) / "resumed.bin")
+            paused = threading.Event()
+            completed = threading.Event()
+            errors = []
+            job = DownloadJob(
+                self.url, destination, lambda *_: None,
+                lambda *_: completed.set(), errors.append,
+                paused=lambda: paused.set(),
+                chunk_size=16 * 1024, max_connections=4,
+            )
+            job.start()
+            time.sleep(0.04)
+            job.pause()
+            self.assertTrue(paused.wait(10), "pause callback did not fire")
+            job._thread.join(5)
+            job.start()
+            self.assertTrue(completed.wait(15), "resumed download did not finish")
             self.assertEqual(errors, [])
             self.assertEqual(Path(destination).read_bytes(), PAYLOAD)
 
