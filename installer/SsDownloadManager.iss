@@ -20,6 +20,7 @@ ArchitecturesInstallIn64BitMode=x64
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 Name: "browserhelper"; Description: "Prepare browser integration"; GroupDescription: "Browser integration:"; Flags: checkedonce
+Name: "startup"; Description: "Start in background when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 [Files]
 Source: "..\dist\SsDownloadManager\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\dist\ssdm-native-host.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -28,6 +29,8 @@ Source: "..\browser\chromium\*"; DestDir: "{app}\browser\chromium"; Flags: ignor
 Source: "..\browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
+[Registry]
+Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "SsDownloadManager"; ValueData: """{app}\\SsDownloadManager.exe"" --background"; Tasks: startup; Flags: uninsdeletevalue
 [Icons]
 Name: "{group}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"
 Name: "{autodesktop}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"; Tasks: desktopicon
