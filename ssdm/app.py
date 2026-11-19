@@ -109,6 +109,7 @@ class MainWindow(QMainWindow):
         self.addToolBar(toolbar)
         for label, handler in [
             ("＋ Add URL", self.add_download),
+            ("＋ Batch URLs", self.add_batch_downloads),
             ("↑ Upload file", self.upload_file),
             ("▶ Resume", self.resume_selected),
             ("Ⅱ Pause", self.pause_selected),
@@ -200,6 +201,42 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def add_batch_downloads(self):
+        urls, ok = QInputDialog.getMultiLineText(
+            self, "Batch downloads", "Paste one HTTP(S) URL per line:"
+        )
+        if not ok:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose download folder", str(Path.home() / "Downloads")
+        )
+        if not folder:
+            return
+        added = []
+        known = {r["destination"] for r in self.records}
+        for raw in urls.splitlines():
+            url = raw.strip()
+            parsed = urlparse(url)
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                continue
+            name = filename_from_url(url)
+            destination = str(Path(folder).expanduser() / name)
+            if destination in known:
+                continue
+            known.add(destination)
+            record = {
+                "id": uuid.uuid4().hex, "url": url, "name": name,
+                "destination": destination, "status": "Queued",
+                "downloaded": 0, "total": None, "speed": 0,
+            }
+            self.records.insert(0, record)
+            added.append(record)
+        self._save()
+        self.refresh()
+        for record in added:
+            self._start(record)
+        self.statusBar().showMessage(f"Added {len(added)} valid downloads", 5000)
 
     def upload_file(self):
         source, _ = QFileDialog.getOpenFileName(self, "Choose file to upload")
