@@ -5,7 +5,7 @@ function notify(message, failed = false) {
   chrome.action.setTitle({title: "Ss Download Manager: " + message});
   setTimeout(() => chrome.action.setBadgeText({text: ""}), 5000);
 }
-function sendUrl(url, source = "chromium") {
+function sendUrl(url, source = "chromium", downloadId = null) {
   if (!url || !/^https?:\/\//i.test(url)) return;
   let port;
   try { port = chrome.runtime.connectNative(HOST); }
@@ -13,7 +13,12 @@ function sendUrl(url, source = "chromium") {
   let replied = false;
   port.onMessage.addListener(reply => {
     replied = true;
-    notify(reply?.ok ? "Link sent to download queue." : (reply?.error || "Could not send link."), !reply?.ok);
+    if (reply?.ok) {
+      notify("Link sent to download queue.");
+      if (downloadId !== null) chrome.downloads.cancel(downloadId, () => void chrome.runtime.lastError);
+    } else {
+      notify(reply?.error || "Could not send link.", true);
+    }
     port.disconnect();
   });
   port.onDisconnect.addListener(() => {
@@ -27,6 +32,12 @@ chrome.runtime.onInstalled.addListener(() => {
     chrome.contextMenus.create({id: "ssdm-page", title: "Send page to Ss Download Manager", contexts: ["page"]});
     chrome.contextMenus.create({id: "ssdm-selection", title: "Download selected URL with Ss Download Manager", contexts: ["selection"]});
   });
+});
+chrome.action.onClicked.addListener(tab => sendUrl(tab?.url, "chromium-toolbar"));
+chrome.downloads.onCreated.addListener(item => {
+  if (item?.id !== undefined && /^https?:\/\//i.test(item.url || "")) {
+    sendUrl(item.url, "chromium-download", item.id);
+  }
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "ssdm-link") sendUrl(info.linkUrl);
