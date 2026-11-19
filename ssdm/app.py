@@ -517,6 +517,15 @@ class MainWindow(QMainWindow):
             lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
         )
         self.upload_jobs[upload_id] = job
+        size = Path(source).stat().st_size
+        self.records.insert(0, {
+            "id": upload_id, "url": destination.strip(), "name": Path(source).name,
+            "destination": source, "status": "Uploading", "downloaded": 0,
+            "total": size, "speed": 0, "category": "Upload",
+            "transfer_type": "upload",
+        })
+        self._save()
+        self.refresh()
         self.statusBar().showMessage(f"Uploading {Path(source).name}…")
         job.start()
 
@@ -527,10 +536,22 @@ class MainWindow(QMainWindow):
         upload_id = next(reversed(self.upload_jobs))
         job = self.upload_jobs.pop(upload_id)
         job.cancel()
+        record = self._by_id(upload_id)
+        if record:
+            record["status"] = "Cancelled"
+            record["speed"] = 0
+        self._save()
+        self.refresh()
         self.statusBar().showMessage(f"Cancelled upload: {job.source.name}", 5000)
 
     def on_upload_progress(self, upload_id, sent, total, speed):
         job = self.upload_jobs.get(upload_id)
+        record = self._by_id(upload_id)
+        if record:
+            record["downloaded"] = sent
+            record["total"] = total
+            record["speed"] = speed
+            self.refresh()
         if job:
             percent = (sent / total * 100) if total else 0
             self.statusBar().showMessage(
@@ -539,12 +560,26 @@ class MainWindow(QMainWindow):
 
     def on_upload_finished(self, upload_id):
         job = self.upload_jobs.pop(upload_id, None)
+        record = self._by_id(upload_id)
+        if record:
+            record["status"] = "Completed"
+            record["downloaded"] = record.get("total") or 0
+            record["speed"] = 0
+        self._save()
+        self.refresh()
         if job:
             QMessageBox.information(self, "Upload complete", f"{job.source.name} was uploaded successfully.")
             self.statusBar().showMessage("Upload completed", 5000)
 
     def on_upload_failed(self, upload_id, error):
         self.upload_jobs.pop(upload_id, None)
+        record = self._by_id(upload_id)
+        if record:
+            record["status"] = "Failed"
+            record["speed"] = 0
+            record["error"] = error
+        self._save()
+        self.refresh()
         QMessageBox.warning(self, "Upload failed", error)
         self.statusBar().showMessage("Upload failed", 5000)
 
@@ -558,7 +593,7 @@ class MainWindow(QMainWindow):
 
     def resume_selected(self):
         record = self._selected()
-        if record and record["status"] in ("Paused", "Failed", "Queued"):
+        if record and record.get("transfer_type") != "upload" and record["status"] in ("Paused", "Failed", "Queued"):
             self._start(record)
 
     def pause_selected(self):
@@ -588,6 +623,9 @@ class MainWindow(QMainWindow):
         record = self._selected()
         if not record:
             return
+        upload = self.upload_jobs.pop(record["id"], None)
+        if upload:
+            upload.cancel()
         job = self.jobs.pop(record["id"], None)
         if job:
             job.cancel(delete_partial=True)
