@@ -113,6 +113,7 @@ class HtmlBridge(QObject):
     @Slot()
     def grabberClosed(self):
         self.window._grabber_open = False
+        self.window._last_clipboard_text = ""
 
     @Slot()
     def requestRefresh(self):
@@ -383,6 +384,7 @@ class MainWindow(QMainWindow):
             self._schedule_queue()
             self.statusBar().showMessage(f"Added {added} link(s) from Link Grabber", 5000)
         self._grabber_open = False
+        self._last_clipboard_text = ""
 
     def show_about(self):
         QMessageBox.about(
