@@ -22,9 +22,11 @@ function sendUrl(url, source = "chromium") {
   port.postMessage({url, source});
 }
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({id: "ssdm-link", title: "Download link with Ss Download Manager", contexts: ["link"]});
-  chrome.contextMenus.create({id: "ssdm-page", title: "Send page to Ss Download Manager", contexts: ["page"]});
-  chrome.contextMenus.create({id: "ssdm-selection", title: "Download selected URL with Ss Download Manager", contexts: ["selection"]});
+  chrome.contextMenus.removeAll(() => {
+    chrome.contextMenus.create({id: "ssdm-link", title: "Download link with Ss Download Manager", contexts: ["link"]});
+    chrome.contextMenus.create({id: "ssdm-page", title: "Send page to Ss Download Manager", contexts: ["page"]});
+    chrome.contextMenus.create({id: "ssdm-selection", title: "Download selected URL with Ss Download Manager", contexts: ["selection"]});
+  });
 });
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "ssdm-link") sendUrl(info.linkUrl);
