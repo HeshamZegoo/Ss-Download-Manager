@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -31,6 +33,23 @@ class BrowserExtensionTests(unittest.TestCase):
         self.assertIn("browser.browserAction.onClicked", background)
         self.assertIn("browser.downloads.onCreated", background)
         self.assertIn("browser.downloads.cancel", background)
+
+    def test_chromium_key_matches_pre_registered_extension_id(self):
+        manifest = json.loads((ROOT / "browser/chromium/manifest.json").read_text())
+        digest = hashlib.sha256(base64.b64decode(manifest["key"])).digest()[:16]
+        extension_id = "".join(
+            chr(ord("a") + (byte >> 4)) + chr(ord("a") + (byte & 15))
+            for byte in digest
+        )
+        self.assertEqual(extension_id, "egoijdabioaaoapbipodjmlpikfjbejd")
+        installer = (ROOT / "tools/register-browser-host.ps1").read_text()
+        self.assertIn(extension_id, installer)
+
+    def test_installed_native_host_manifest_allows_both_extension_ids(self):
+        installer = (ROOT / "tools/register-browser-host.ps1").read_text()
+        self.assertIn("allowed_origins", installer)
+        self.assertIn("allowed_extensions", installer)
+        self.assertIn("ss-download-manager@heshamzegoo", installer)
 
     def test_installer_registers_all_four_browser_families(self):
         script = (ROOT / "browser/install-browser-host.ps1").read_text().replace("\\", "/")
