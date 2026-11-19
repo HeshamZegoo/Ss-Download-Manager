@@ -61,6 +61,7 @@ jobs:
           --name SsDownloadManager
           --icon dist/SsDownloadManager.ico
           --collect-all yt_dlp
+          --collect-all libtorrent
           --collect-all paramiko
           --collect-all requests
           --collect-all certifi
