@@ -15,7 +15,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
-- Real HTTP(S) PUT uploads with progress reporting and cancellation; supports compatible WebDAV endpoints and pre-signed upload URLs.
+- Real HTTP(S) PUT and SFTP uploads with progress reporting and cancellation; HTTP supports compatible WebDAV endpoints and pre-signed upload URLs.
 - Video grabber for supported sites using yt-dlp, with progress reporting and cancellation.
 - No application-imposed transfer speed cap by default.
 
@@ -30,7 +30,7 @@ python main.py
 
 ## Uploading
 
-Choose **Upload file**, select a local file, then provide an HTTP(S) destination URL that accepts PUT. For authenticated services, use an authorized or pre-signed URL. FTP/SFTP and credential profiles are not implemented yet.
+Choose **Upload file**, select a local file, then choose HTTP PUT or SFTP. HTTP requires a destination URL that accepts PUT. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. Passwords are not saved.
 
 ## Tests
 
@@ -45,7 +45,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 - Browser extensions / browser integration and browser-captured links.
 - FTP/SFTP upload, upload queue/history, and resumable uploads.
 - Browser extension/native-messaging integration and polished settings/preferences.
-- Resumable uploads and richer upload queue controls.
+- Resumable uploads, FTP/FTPS, and richer upload queue controls.
 
 ## Limitations
 
