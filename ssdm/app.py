@@ -127,6 +127,7 @@ class MainWindow(QMainWindow):
             ("Schedule", self.schedule_selected),
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
+            ("Cancel upload", self.cancel_upload),
             ("▶ Resume", self.resume_selected),
             ("Ⅱ Pause", self.pause_selected),
             ("■ Pause all", self.pause_all),
@@ -445,6 +446,15 @@ class MainWindow(QMainWindow):
         self.upload_jobs[upload_id] = job
         self.statusBar().showMessage(f"Uploading {Path(source).name}…")
         job.start()
+
+    def cancel_upload(self):
+        if not self.upload_jobs:
+            self.statusBar().showMessage("No active uploads", 3000)
+            return
+        upload_id = next(reversed(self.upload_jobs))
+        job = self.upload_jobs.pop(upload_id)
+        job.cancel()
+        self.statusBar().showMessage(f"Cancelled upload: {job.source.name}", 5000)
 
     def on_upload_progress(self, upload_id, sent, total, speed):
         job = self.upload_jobs.get(upload_id)
