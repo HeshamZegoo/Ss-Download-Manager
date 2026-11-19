@@ -11,7 +11,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Batch URL import (one URL per line), configurable per-file connection count, and a bounded active-download queue.
 - Queue ordering controls, a configurable simultaneous-download limit, and a clipboard URL monitor with user confirmation.
 - Scheduled download start times, an optional aggregate download speed cap, and system-tray notifications/background operation where supported.
-- Upload cancellation and progress reporting.
+- Upload progress, cancellation, and pause/resume controls; SFTP and FTP/FTPS continue from the remote partial file when supported, while plain HTTP PUT restarts from the beginning.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
