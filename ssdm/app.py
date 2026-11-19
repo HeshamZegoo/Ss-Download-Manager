@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QToolBar, QVBoxLayout, QWidget, QLabel
 )
 
-from .downloader import DownloadJob, filename_from_url
+from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
 from .uploader import UploadJob
 
 APP_NAME = "Ss Download Manager"
@@ -87,6 +87,8 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("SsDM", "SsDownloadManager")
         self.max_connections = self.settings.value("max_connections", 8, type=int)
         self.max_active_downloads = self.settings.value("max_active_downloads", 3, type=int)
+        self.speed_limit_kbps = self.settings.value("speed_limit_kbps", 0, type=int)
+        set_download_speed_limit(self.speed_limit_kbps)
         self.clipboard_monitoring = False
         self.signals = JobSignals()
         self.signals.progress.connect(self.on_progress)
@@ -117,6 +119,7 @@ class MainWindow(QMainWindow):
             ("＋ Batch URLs", self.add_batch_downloads),
             ("Connections", self.configure_connections),
             ("Queue limit", self.configure_queue_limit),
+            ("Speed limit", self.configure_speed_limit),
             ("Move up", self.move_selected_up),
             ("Move down", self.move_selected_down),
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
@@ -220,6 +223,18 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def configure_speed_limit(self):
+        value, ok = QInputDialog.getInt(
+            self, "Download speed limit", "Aggregate limit in KiB/s (0 = unlimited):",
+            self.speed_limit_kbps, 0, 10_000_000, 64
+        )
+        if ok:
+            self.speed_limit_kbps = value
+            self.settings.setValue("speed_limit_kbps", value)
+            set_download_speed_limit(value)
+            label = "Unlimited" if value == 0 else f"{value} KiB/s"
+            self.statusBar().showMessage(f"Download speed limit: {label}", 5000)
 
     def configure_queue_limit(self):
         value, ok = QInputDialog.getInt(
