@@ -365,8 +365,9 @@ class MainWindow(QMainWindow):
         active = len(self.jobs)
         now = datetime.now()
         waiting = sorted(
-            (r for r in self.records if r.get("status") == "Queued" or
-             (r.get("status") == "Scheduled" and _schedule_due(r, now))),
+            (r for r in self.records if r.get("transfer_type") != "upload" and
+             (r.get("status") == "Queued" or
+              (r.get("status") == "Scheduled" and _schedule_due(r, now)))),
             key=lambda r: r.get("priority", 0), reverse=True,
         )
         for record in waiting[:max(0, self.max_active_downloads - active)]:
