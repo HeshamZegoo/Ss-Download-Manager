@@ -33,6 +33,7 @@ class DownloadJob:
         progress: Callable[[int, int | None, float], None],
         finished: Callable[[str], None],
         failed: Callable[[str], None],
+        paused: Callable[[], None] | None = None,
         chunk_size: int = 256 * 1024,
     ) -> None:
         self.url = url
@@ -41,6 +42,7 @@ class DownloadJob:
         self.progress = progress
         self.finished = finished
         self.failed = failed
+        self.paused = paused or (lambda: None)
         self.chunk_size = chunk_size
         self._pause = False
         self._cancel = False
@@ -57,10 +59,8 @@ class DownloadJob:
         self._thread.start()
 
     def pause(self) -> None:
+        # Let the current chunk finish so the partial file remains consistent.
         self._pause = True
-        response = self._response
-        if response is not None:
-            response.close()
 
     def cancel(self, delete_partial: bool = False) -> None:
         self._cancel = True
@@ -127,6 +127,7 @@ class DownloadJob:
                 return
             if self._pause:
                 self.progress(received, total, 0.0)
+                self.paused()
                 return
             if total is not None and received != total:
                 raise DownloadError(f"Download ended early ({received} of {total} bytes). You can resume it.")
