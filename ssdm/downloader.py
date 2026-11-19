@@ -106,10 +106,13 @@ class DownloadJob:
             except Exception:
                 pass
         if delete_partial:
-            self.part_path.unlink(missing_ok=True)
-            for path in self.part_path.parent.glob(self.part_path.name + ".seg*"):
-                path.unlink(missing_ok=True)
-            Path(str(self.part_path) + ".meta").unlink(missing_ok=True)
+            for path in [self.part_path, *self.part_path.parent.glob(self.part_path.name + ".seg*"),
+                         Path(str(self.part_path) + ".meta")]:
+                try:
+                    path.unlink(missing_ok=True)
+                except OSError:
+                    # On Windows an open worker file may remain locked until its thread exits.
+                    pass
 
     def _track(self, response):
         with self._lock:
