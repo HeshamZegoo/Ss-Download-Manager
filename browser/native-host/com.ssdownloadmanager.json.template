@@ -1,0 +1,12 @@
+{
+  "name": "com.ssdownloadmanager",
+  "description": "Ss Download Manager native messaging bridge",
+  "path": "__INSTALL_DIR__\\ssdm-native-host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://__CHROMIUM_EXTENSION_ID__/"
+  ],
+  "allowed_extensions": [
+    "ss-download-manager@heshamzegoo"
+  ]
+}
