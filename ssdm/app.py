@@ -6,6 +6,7 @@ import json
 import os
 import sys
 import time
+import traceback
 import uuid
 import webbrowser
 from pathlib import Path
@@ -293,6 +294,7 @@ class MainWindow(QMainWindow):
         self.browser_poll.start()
         self._last_clipboard_text = ""
         self._grabber_open = False
+        self._pending_grabber_urls = ""
         self.grabber_remember_location = self.settings.value("grabber_remember_location", False, type=bool)
         self.grabber_download_dir = self.settings.value("grabber_download_dir", str(self.default_download_dir))
         QApplication.clipboard().dataChanged.connect(self._on_clipboard_changed)
@@ -311,16 +313,23 @@ class MainWindow(QMainWindow):
         if not urls:
             return
         self._grabber_open = True
-        folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
-        self.web_view.page().runJavaScript("window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ", " + json.dumps(bool(self.grabber_remember_location)) + ");")
-        escaped = json.dumps("\n".join(urls), ensure_ascii=False)
-        self.web_view.page().runJavaScript(
-            "if(window.ssdmOpenGrabber) window.ssdmOpenGrabber(" + escaped + ");"
-        )
+        self._pending_grabber_urls = "\n".join(urls)
         self.showNormal()
         self.raise_()
         self.activateWindow()
+        QTimer.singleShot(500, self._display_grabber)
         self.statusBar().showMessage(f"Link Grabber: {len(urls)} copied link(s) detected", 5000)
+
+    def _display_grabber(self):
+        folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
+        self.web_view.page().runJavaScript(
+            "window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ", "
+            + json.dumps(bool(self.grabber_remember_location)) + ");"
+        )
+        self.web_view.page().runJavaScript(
+            "if(window.ssdmOpenGrabber) window.ssdmOpenGrabber("
+            + json.dumps(self._pending_grabber_urls, ensure_ascii=False) + ");"
+        )
 
     def choose_grabber_folder(self, current):
         start = current or str(self.default_download_dir)
@@ -1276,6 +1285,36 @@ def _speed(value):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
+
+    def log_uncaught_exception(exc_type, exc_value, exc_traceback):
+        details = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        try:
+            (data_dir() / "startup-error.log").write_text(details, encoding="utf-8")
+        except OSError:
+            pass
+        try:
+            QMessageBox.critical(
+                None, f"{APP_NAME} error",
+                "The application encountered an unexpected error. "
+                "A diagnostic log was saved in %APPDATA%\\SsDownloadManager\\startup-error.log."
+            )
+        except Exception:
+            pass
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+    sys.excepthook = log_uncaught_exception
+    try:
+        window = MainWindow()
+        window.show()
+        sys.exit(app.exec())
+    except Exception:
+        details = traceback.format_exc()
+        try:
+            (data_dir() / "startup-error.log").write_text(details, encoding="utf-8")
+        except OSError:
+            pass
+        QMessageBox.critical(
+            None, f"{APP_NAME} could not start",
+            "Startup failed. Details were saved to %APPDATA%\\SsDownloadManager\\startup-error.log."
+        )
+        raise
