@@ -768,8 +768,8 @@ class MainWindow(QMainWindow):
 
     def _resume_upload_record(self, record):
         protocol = record.get("upload_protocol", "HTTP PUT / WebDAV")
-        password = ""
-        if protocol in ("SFTP", "FTP", "FTPS"):
+        password = self.upload_passwords.get(record["id"], "")
+        if protocol in ("SFTP", "FTP", "FTPS") and not password:
             password, ok = QInputDialog.getText(
                 self, f"{protocol} authentication", "Re-enter password (not saved):",
                 QLineEdit.EchoMode.Password
