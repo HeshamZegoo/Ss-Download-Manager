@@ -14,7 +14,7 @@ class AppStartupTests(unittest.TestCase):
 
     def test_main_window_initializes_with_persistent_settings(self):
         window = MainWindow()
-        self.assertEqual(window.max_active_uploads, 2 if window.max_active_uploads < 1 else window.max_active_uploads)
+        self.assertGreaterEqual(window.max_active_uploads, 1)
         self.assertTrue(window.default_download_dir.exists())
         window.close()
 
