@@ -30,6 +30,7 @@ from .sftp_uploader import SFTPUploadJob
 from .ftp_uploader import FTPUploadJob
 from .tus_uploader import TusUploadJob
 from .video import VideoDownloadJob
+from .torrent import TorrentManager
 
 APP_NAME = "Ss Download Manager"
 DEVELOPER_NAME = "HeshamZegoo"
@@ -148,6 +149,100 @@ class LinkGrabberDialog(QDialog):
         super().reject()
 
 
+class TorrentWindow(QDialog):
+    def __init__(self, manager, default_folder, parent=None):
+        super().__init__(parent, Qt.WindowType.Window)
+        self.manager = manager
+        self.default_folder = str(default_folder)
+        self.setWindowTitle("Torrent Manager — Ss Download Manager")
+        self.setMinimumSize(780, 430)
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel("Magnet link or .torrent file"))
+        source_row = QHBoxLayout()
+        self.source = QLineEdit()
+        self.source.setPlaceholderText("magnet:?xt=urn:btih:... or browse for a .torrent file")
+        browse_file = QPushButton("Browse .torrent")
+        browse_file.clicked.connect(self.choose_torrent)
+        source_row.addWidget(self.source, 1)
+        source_row.addWidget(browse_file)
+        root.addLayout(source_row)
+        folder_row = QHBoxLayout()
+        self.folder = QLineEdit(self.default_folder)
+        browse_folder = QPushButton("Save location")
+        browse_folder.clicked.connect(self.choose_folder)
+        folder_row.addWidget(QLabel("Save to"))
+        folder_row.addWidget(self.folder, 1)
+        folder_row.addWidget(browse_folder)
+        root.addLayout(folder_row)
+        add_row = QHBoxLayout()
+        add = QPushButton("Add torrent")
+        add.clicked.connect(self.add_torrent)
+        add_row.addWidget(add)
+        add_row.addStretch(1)
+        pause = QPushButton("Pause")
+        resume = QPushButton("Resume")
+        remove = QPushButton("Remove")
+        pause.clicked.connect(lambda: self.with_selected(self.manager.pause))
+        resume.clicked.connect(lambda: self.with_selected(self.manager.resume))
+        remove.clicked.connect(lambda: self.with_selected(self.manager.remove))
+        add_row.addWidget(pause)
+        add_row.addWidget(resume)
+        add_row.addWidget(remove)
+        root.addLayout(add_row)
+        self.table = QTableWidget(0, 7)
+        self.table.setHorizontalHeaderLabels(["Torrent", "Progress", "Download", "Upload", "Seeds", "Peers", "State"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in range(1, 7):
+            self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        root.addWidget(self.table, 1)
+        self.status = QLabel("DHT enabled · Peer exchange and local discovery enabled")
+        root.addWidget(self.status)
+        self.rows = []
+        self.manager.changed.connect(self.render_rows)
+        self.manager.error.connect(self.show_error)
+
+    def choose_torrent(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Select torrent file", self.folder.text(), "Torrent files (*.torrent)")
+        if path:
+            self.source.setText(path)
+
+    def choose_folder(self):
+        path = QFileDialog.getExistingDirectory(self, "Choose download location", self.folder.text())
+        if path:
+            self.folder.setText(path)
+
+    def add_torrent(self):
+        try:
+            info_hash = self.manager.add(self.source.text(), self.folder.text())
+            self.status.setText("Torrent added: " + info_hash)
+            self.source.clear()
+        except Exception as exc:
+            QMessageBox.warning(self, "Torrent Manager", str(exc))
+
+    def with_selected(self, action):
+        row = self.table.currentRow()
+        if 0 <= row < len(self.rows):
+            action(self.rows[row]["id"])
+
+    def render_rows(self, rows):
+        self.rows = rows
+        self.table.setRowCount(len(rows))
+        for row, item in enumerate(rows):
+            values = [
+                item["name"], f'{item["progress"]:.1f}%',
+                f'{item["download_rate"] / 1024:.1f} KB/s',
+                f'{item["upload_rate"] / 1024:.1f} KB/s',
+                str(item["seeds"]), str(item["peers"]), item["state"],
+            ]
+            for col, value in enumerate(values):
+                self.table.setItem(row, col, QTableWidgetItem(value))
+
+    def show_error(self, message):
+        self.status.setText(message[:300])
+
+
+
 class HtmlBridge(QObject):
     def __init__(self, window):
         super().__init__(window)
@@ -173,6 +268,10 @@ class HtmlBridge(QObject):
     def grabberClosed(self):
         self.window._grabber_open = False
         self.window._last_clipboard_text = ""
+
+    @Slot()
+    def openTorrents(self):
+        self.window.open_torrent_manager()
 
     @Slot()
     def requestRefresh(self):
@@ -258,6 +357,9 @@ class MainWindow(QMainWindow):
         self.signals.video_failed.connect(self.on_video_failed)
         self.store = data_dir() / "downloads.json"
         self._load()
+        self.torrent_manager = TorrentManager(data_dir(), self)
+        self.torrent_window = None
+        QApplication.instance().aboutToQuit.connect(self.torrent_manager.shutdown)
 
         self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(["File name", "Category", "Status", "Progress", "Downloaded", "Speed", "Location"])
@@ -298,6 +400,7 @@ class MainWindow(QMainWindow):
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
             ("Video grabber", self.grab_video),
+            ("Torrent manager", self.open_torrent_manager),
             ("Cancel video", self.cancel_video),
             ("Cancel upload", self.cancel_upload),
             ("▶ Resume", self.resume_selected),
@@ -338,6 +441,8 @@ class MainWindow(QMainWindow):
             show_action.triggered.connect(self.show_main_window)
             grabber_action = tray_menu.addAction("Open Link Grabber")
             grabber_action.triggered.connect(self.open_link_grabber)
+            torrent_action = tray_menu.addAction("Open Torrent Manager")
+            torrent_action.triggered.connect(self.open_torrent_manager)
             tray_menu.addSeparator()
             exit_action = tray_menu.addAction("Exit")
             exit_action.triggered.connect(QApplication.quit)
@@ -398,6 +503,14 @@ class MainWindow(QMainWindow):
     def open_link_grabber(self):
         self._grabber_open = True
         self._show_standalone_grabber("")
+
+    def open_torrent_manager(self):
+        if self.torrent_window is None:
+            self.torrent_window = TorrentWindow(self.torrent_manager, self.default_download_dir, self)
+            self.torrent_window.finished.connect(lambda _result: setattr(self, "torrent_window", None))
+        self.torrent_window.show()
+        self.torrent_window.raise_()
+        self.torrent_window.activateWindow()
 
     def _display_grabber(self):
         folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
