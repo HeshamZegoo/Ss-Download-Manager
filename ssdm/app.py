@@ -253,7 +253,7 @@ class MainWindow(QMainWindow):
                     if any(r.get("url") == url for r in self.records):
                         continue
                     name = filename_from_url(url)
-                    folder = Path.home() / "Downloads"
+                    folder = self.default_download_dir
                     destination = str(folder / name)
                     if any(r.get("destination") == destination for r in self.records):
                         destination = str(folder / f"{Path(name).stem}-{uuid.uuid4().hex[:8]}{Path(name).suffix}")
