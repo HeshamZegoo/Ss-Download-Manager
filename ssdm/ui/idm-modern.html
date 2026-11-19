@@ -77,6 +77,7 @@ footer .dot{display:inline-block;width:8px;height:8px;border-radius:50%;backgrou
   <button id="bSchedule"><span class="i">⏱</span>Scheduler</button>
   <button id="bUpload"><span class="i">⬆</span>Upload</button>
   <button id="bVideo"><span class="i">🎬</span>Video grabber</button>
+  <button id="bGrabber"><span class="i">🔗</span>Link Grabber</button>
   <button id="bOptions"><span class="i">⚙</span>Options</button>
 </div>
 <div class="main">
@@ -97,6 +98,14 @@ footer .dot{display:inline-block;width:8px;height:8px;border-radius:50%;backgrou
   <div class="acts"><button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mOk">Start download</button></div>
 </div></div>
 
+<div class="modal" id="grabberModal"><div class="card">
+  <h3>Link Grabber</h3>
+  <div class="meta">Copy one or more HTTP/HTTPS links and they will appear here automatically. Choose where to save them.</div>
+  <label>Links to download</label><textarea id="gUrls" rows="6" placeholder="https://example.com/file.zip&#10;https://example.com/another-file.iso" style="width:100%;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit"></textarea>
+  <label>Download location</label><div style="display:flex;gap:8px"><input id="gFolder" style="flex:1;min-width:0" readonly><button class="btn" id="gBrowse">Browse</button></div>
+  <label style="display:flex;align-items:center;gap:8px;color:var(--text)"><input id="gRemember" type="checkbox" style="width:auto"> Remember this location</label>
+  <div class="acts"><button class="btn" id="gCancel">Cancel</button><button class="btn p" id="gStart">Add to downloads</button></div>
+</div></div>
 <script>
 var CATS=[["All","📁"],["Archives","🗜"],["Documents","📄"],["Audio","🎵"],["Video","🎬"],["Programs","💾"],["Images","🖼"],["Upload","⬆"],["Other","📦"]];
 var ICON={Archives:"🗜",Documents:"📄",Audio:"🎵",Video:"🎬",Programs:"💾",Images:"🖼",Upload:"⬆",Other:"📦"};
@@ -118,6 +127,12 @@ $("q").oninput=function(e){term=e.target.value.toLowerCase();list()};
 $("bResume").onclick=function(){act("resume")};$("bStop").onclick=function(){act("pause")};$("bStopAll").onclick=function(){if(bridge)bridge.pauseAll()};$("bDel").onclick=function(){act("delete")};$("bClear").onclick=function(){if(bridge)bridge.clearDone()};
 $("bAdd").onclick=function(){$("modal").classList.add("show");$("mUrl").focus()};$("mCancel").onclick=function(){$("modal").classList.remove("show")};
 $("mOk").onclick=function(){var u=$("mUrl").value.trim();if(!u){$("mUrl").focus();return}if(bridge)bridge.addDownload(u,$("mCat").value,parseInt($("mConn").value,10)||8);$("mUrl").value="";$("modal").classList.remove("show")};
+var gDefaultFolder="";window.ssdmSetGrabberFolder=function(path){gDefaultFolder=path||""};
+window.ssdmOpenGrabber=function(urls){$("gUrls").value=urls||"";$("gFolder").value=gDefaultFolder;$("gRemember").checked=false;$("grabberModal").classList.add("show")};
+$("bGrabber").onclick=function(){if(bridge)bridge.requestRefresh();window.ssdmOpenGrabber("")};
+$("gBrowse").onclick=function(){if(bridge)bridge.chooseDownloadFolder($("gFolder").value,function(path){if(path)$("gFolder").value=path})};
+$("gCancel").onclick=function(){$("grabberModal").classList.remove("show");if(bridge)bridge.grabberClosed()};
+$("gStart").onclick=function(){if(bridge)bridge.addGrabberDownloads($("gUrls").value,$("gFolder").value,$("gRemember").checked);$("grabberModal").classList.remove("show")};
 $("bSchedule").onclick=function(){act("schedule")};$("bUpload").onclick=function(){if(bridge)bridge.uploadFile()};$("bVideo").onclick=function(){if(bridge)bridge.grabVideo()};$("bOptions").onclick=function(){if(bridge)bridge.options()};
 $("theme").onclick=function(){if(bridge)bridge.toggleTheme();var r=document.documentElement;r.dataset.theme=r.dataset.theme==="dark"?"light":"dark"};
 new QWebChannel(qt.webChannelTransport,function(channel){bridge=channel.objects.bridge;bridge.requestRefresh()});
