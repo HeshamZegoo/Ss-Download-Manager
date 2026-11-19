@@ -23,6 +23,8 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Video grabber for supported sites using yt-dlp, with progress reporting and cancellation.
 - No application-imposed transfer speed cap by default.
 
+- BitTorrent support for magnet links and .torrent files, with DHT/LSD/UPnP/NAT-PMP, persisted fast-resume data, pause/resume/removal, peer/seed statistics, ETA, configurable active torrent queue, and independent download/upload bandwidth limits (0 = unlimited).
+
 ## Run from source
 
 ```powershell
