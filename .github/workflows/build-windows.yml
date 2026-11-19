@@ -51,10 +51,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Generate application icons
+        run: |
+          python -m pip install cairosvg pillow
+          python tools/generate-icon.py
       - name: Build desktop application EXE
         run: >
-          pyinstaller --noconfirm --clean --onefile --windowed
+          pyinstaller --noconfirm --clean --onedir --windowed
           --name SsDownloadManager
+          --icon dist/SsDownloadManager.ico
           --collect-all yt_dlp
           --collect-all paramiko
           --collect-all requests
@@ -63,6 +68,7 @@ jobs:
           --collect-all PySide6.QtWebEngineWidgets
           --collect-all PySide6.QtWebChannel
           --add-data "ssdm/ui/idm-modern.html;ssdm/ui"
+          --add-data "ssdm/assets/SsDownloadManager.png;ssdm/assets"
           main.py
       - name: Build browser native-messaging host
         run: pyinstaller --noconfirm --onefile --console --name ssdm-native-host ssdm/native_host.py
