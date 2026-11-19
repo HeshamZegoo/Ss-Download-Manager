@@ -20,7 +20,7 @@ $manifest = @{
   allowed_extensions = @("ss-download-manager@heshamzegoo")
 } | ConvertTo-Json -Depth 5
 $manifestPath = Join-Path $InstallDir "com.ssdownloadmanager.json"
-Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
+[System.IO.File]::WriteAllText($manifestPath, $manifest, (New-Object System.Text.UTF8Encoding($false)))
 $keys = @(
   "HKCU:\Software\Google\Chrome\NativeMessagingHosts\com.ssdownloadmanager",
   "HKCU:\Software\Microsoft\Edge\NativeMessagingHosts\com.ssdownloadmanager",
