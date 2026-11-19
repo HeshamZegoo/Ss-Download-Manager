@@ -478,12 +478,12 @@ class MainWindow(QMainWindow):
         self._last_clipboard_text = clip_text
         # Accept one URL per line and URLs separated by spaces or tabs.
         import re
-        candidates = re.findall(r"https?://[^\\s<>\"']+", clip_text)
+        candidates = re.findall(r"https?://[^\s<>\"']+", clip_text)
         urls = list(dict.fromkeys(u.rstrip(".,);]") for u in candidates))
         if not urls:
             return
         self._grabber_open = True
-        QTimer.singleShot(120, lambda: self._show_standalone_grabber("\\n".join(urls)))
+        QTimer.singleShot(120, lambda: self._show_standalone_grabber("\n".join(urls)))
 
     def _show_standalone_grabber(self, urls):
         if not self._grabber_open:
