@@ -3,7 +3,7 @@
   "name": "Ss Download Manager Integration",
   "version": "1.0.0",
   "description": "Send browser downloads and links to Ss Download Manager.",
-  "permissions": ["contextMenus", "nativeMessaging"],
+  "permissions": ["activeTab", "contextMenus", "nativeMessaging"],
   "background": {"service_worker": "service_worker.js"},
   "action": {"default_title": "Ss Download Manager"},
   "minimum_chrome_version": "105"
