@@ -1,6 +1,8 @@
 """Resumable HTTP downloader with safe segmented range downloads."""
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import threading
 import time
@@ -76,6 +78,7 @@ class DownloadJob:
             self.part_path.unlink(missing_ok=True)
             for path in self.part_path.parent.glob(self.part_path.name + ".seg*"):
                 path.unlink(missing_ok=True)
+            Path(str(self.part_path) + ".meta").unlink(missing_ok=True)
 
     def _track(self, response):
         with self._lock:
@@ -160,6 +163,17 @@ class DownloadJob:
     def _run_segmented(self, total):
         count = min(self.max_connections, max(2, (total + self.chunk_size - 1)//self.chunk_size))
         ranges = []
+        meta_path = Path(str(self.part_path) + ".meta")
+        identity = hashlib.sha256(self.url.encode("utf-8")).hexdigest()
+        try:
+            previous = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            previous = {}
+        expected_meta = {"count": count, "total": total, "url": identity}
+        if previous != expected_meta:
+            for stale in self.part_path.parent.glob(self.part_path.name + ".seg*"):
+                stale.unlink(missing_ok=True)
+            meta_path.write_text(json.dumps(expected_meta), encoding="utf-8")
         for index in range(count):
             start = total * index // count
             end = total * (index + 1) // count - 1
@@ -190,7 +204,8 @@ class DownloadJob:
                 if response.status_code != 206:
                     raise DownloadError("Server stopped supporting byte ranges; restart this download.")
                 expected_prefix = f"bytes {position}-"
-                if not response.headers.get("Content-Range", "").startswith(expected_prefix):
+                returned_range = response.headers.get("Content-Range", "")
+                if not returned_range.startswith(expected_prefix) or not returned_range.endswith("/" + str(total)):
                     raise DownloadError("Server returned an invalid segment range.")
                 with path.open("ab" if existing else "wb") as output:
                     for chunk in response.iter_content(self.chunk_size):
@@ -236,6 +251,7 @@ class DownloadJob:
             os.fsync(output.fileno())
         for _, _, _, path, _ in ranges:
             path.unlink(missing_ok=True)
+        meta_path.unlink(missing_ok=True)
         if self.part_path.stat().st_size != total:
             raise DownloadError("Final file size does not match the server's advertised size.")
         os.replace(self.part_path, self.destination)
