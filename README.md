@@ -1,5 +1,8 @@
 # Ss Download Manager
 
+**Developer:** [HeshamZegoo](https://github.com/HeshamZegoo)  
+**Copyright:** Copyright © 2026 HeshamZegoo
+
 A Windows-first desktop download manager inspired by IDM-style download tools.
 
 ## Implemented in the current source
@@ -35,7 +38,7 @@ Choose **Upload file**, select a local file, then choose HTTP PUT, TUS resumable
 
 ## Browser integration (source preview)
 
-The repository includes Chromium (Chrome, Edge, Brave) and Firefox extension source under `browser/`. The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. They communicate through the native-messaging host; the desktop app polls its local inbox and adds validated HTTP(S) URLs to the queue. This avoids a local HTTP listener.
+The repository includes Chromium (Chrome, Edge, Brave) and Firefox extension source under `browser/`. The browser integration is developed by HeshamZegoo. The extensions add context-menu actions to send a link, the current page, or selected URL text to Ss Download Manager. They communicate through the native-messaging host; the desktop app polls its local inbox and adds validated HTTP(S) URLs to the queue. This avoids a local HTTP listener.
 
 The native host executable is produced separately during final packaging:
 
