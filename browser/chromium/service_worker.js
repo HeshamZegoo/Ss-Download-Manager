@@ -6,7 +6,7 @@ function notify(message, failed = false) {
   setTimeout(() => chrome.action.setBadgeText({text: ""}), 5000);
 }
 function sendUrl(url, source = "chromium", downloadId = null) {
-  if (!url || !/^https?:\/\//i.test(url)) return;
+  if (!url || !/^https?:\\/\\//i.test(url)) return;
   let port;
   try { port = chrome.runtime.connectNative(HOST); }
   catch (error) { notify(error.message, true); return; }
@@ -15,7 +15,6 @@ function sendUrl(url, source = "chromium", downloadId = null) {
     replied = true;
     if (reply?.ok) {
       notify("Link sent to download queue.");
-      if (downloadId !== null) chrome.downloads.cancel(downloadId, () => void chrome.runtime.lastError);
     } else {
       notify(reply?.error || "Could not send link.", true);
     }
@@ -25,6 +24,9 @@ function sendUrl(url, source = "chromium", downloadId = null) {
     if (!replied) notify(chrome.runtime.lastError?.message || "Desktop bridge unavailable.", true);
   });
   port.postMessage({url, source});
+  // Hand off immediately: do not let Chrome download the same file in parallel.
+  // The native host persists the URL in the desktop inbox before acknowledging it.
+  if (downloadId !== null) chrome.downloads.cancel(downloadId, () => void chrome.runtime.lastError);
 }
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
@@ -35,7 +37,7 @@ chrome.runtime.onInstalled.addListener(() => {
 });
 chrome.action.onClicked.addListener(tab => sendUrl(tab?.url, "chromium-toolbar"));
 chrome.downloads.onCreated.addListener(item => {
-  if (item?.id !== undefined && /^https?:\/\//i.test(item.url || "")) {
+  if (item?.id !== undefined && /^https?:\\/\\//i.test(item.url || "")) {
     sendUrl(item.url, "chromium-download", item.id);
   }
 });
