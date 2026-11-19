@@ -20,7 +20,6 @@ ArchitecturesInstallIn64BitMode=x64
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 Name: "browserhelper"; Description: "Prepare browser integration"; GroupDescription: "Browser integration:"; Flags: checkedonce
-Name: "startup"; Description: "Start in background when Windows starts"; GroupDescription: "Startup:"; Flags: checkedonce
 [Files]
 Source: "..\dist\SsDownloadManager\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\dist\ssdm-native-host.exe"; DestDir: "{app}"; Flags: ignoreversion
