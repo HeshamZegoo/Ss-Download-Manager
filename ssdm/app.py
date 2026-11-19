@@ -632,7 +632,7 @@ class MainWindow(QMainWindow):
         self.records.insert(0, {
             "id": upload_id, "url": destination.strip(), "name": Path(source).name,
             "destination": source,
-            "status": "Uploading", "downloaded": 0,
+            "status": "Queued", "downloaded": 0,
             "total": size, "speed": 0, "category": "Upload",
             "transfer_type": "upload", "upload_protocol": protocol,
         })
