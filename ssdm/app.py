@@ -614,7 +614,7 @@ class MainWindow(QMainWindow):
         size = Path(source).stat().st_size
         self.records.insert(0, {
             "id": upload_id, "url": destination.strip(), "name": Path(source).name,
-            "destination": source, "destination_url": source, "url": destination.strip(),
+            "destination": source, "url": destination.strip(),
             "status": "Uploading", "downloaded": 0,
             "total": size, "speed": 0, "category": "Upload",
             "transfer_type": "upload", "upload_protocol": protocol,
@@ -713,11 +713,11 @@ class MainWindow(QMainWindow):
             lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
         )
         if protocol == "HTTP PUT / WebDAV":
-            job = UploadJob(record["destination_url"], record["url"], *callbacks)
+            job = UploadJob(record["destination"], record["url"], *callbacks)
         elif protocol == "SFTP":
-            job = SFTPUploadJob(record["destination_url"], record["url"], password, *callbacks)
+            job = SFTPUploadJob(record["destination"], record["url"], password, *callbacks)
         else:
-            job = FTPUploadJob(record["destination_url"], record["url"], password, *callbacks)
+            job = FTPUploadJob(record["destination"], record["url"], password, *callbacks)
         self.upload_jobs[upload_id] = job
         record["status"] = "Uploading"
         record["speed"] = 0
