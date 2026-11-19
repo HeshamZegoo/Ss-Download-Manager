@@ -29,6 +29,8 @@ from .tus_uploader import TusUploadJob
 from .video import VideoDownloadJob
 
 APP_NAME = "Ss Download Manager"
+DEVELOPER_NAME = "HeshamZegoo"
+COPYRIGHT_NOTICE = "Copyright © 2026 HeshamZegoo"
 
 
 def data_dir() -> Path:
@@ -163,6 +165,11 @@ class MainWindow(QMainWindow):
             action.triggered.connect(handler)
             toolbar.addAction(action)
 
+        help_menu = self.menuBar().addMenu("Help")
+        about_action = QAction("About Ss Download Manager", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+
         self.search = QLineEdit()
         self.search.setPlaceholderText("Search downloads…")
         self.search.textChanged.connect(self.refresh)
@@ -197,6 +204,16 @@ class MainWindow(QMainWindow):
         self.browser_poll.setInterval(700)
         self.browser_poll.timeout.connect(self._ingest_browser_inbox)
         self.browser_poll.start()
+
+    def show_about(self):
+        QMessageBox.about(
+            self,
+            f"About {APP_NAME}",
+            f"<h3>{APP_NAME}</h3>"
+            f"<p>Developed by <b>{DEVELOPER_NAME}</b></p>"
+            f"<p>{COPYRIGHT_NOTICE}</p>"
+            f"<p><a href='https://github.com/HeshamZegoo/Ss-Download-Manager'>GitHub project</a></p>"
+        )
 
     def closeEvent(self, event):
         if self.tray and self.tray.isVisible():
