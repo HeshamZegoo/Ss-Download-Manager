@@ -61,6 +61,7 @@ jobs:
           --collect-all certifi
           --collect-all PySide6.QtWebEngineCore
           --collect-all PySide6.QtWebEngineWidgets
+          --collect-all PySide6.QtWebChannel
           --add-data "ssdm/ui/idm-modern.html;ssdm/ui"
           main.py
       - name: Build browser native-messaging host
