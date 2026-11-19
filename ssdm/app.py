@@ -614,9 +614,10 @@ class MainWindow(QMainWindow):
         size = Path(source).stat().st_size
         self.records.insert(0, {
             "id": upload_id, "url": destination.strip(), "name": Path(source).name,
-            "destination": source, "status": "Uploading", "downloaded": 0,
+            "destination": source, "destination_url": source, "url": destination.strip(),
+            "status": "Uploading", "downloaded": 0,
             "total": size, "speed": 0, "category": "Upload",
-            "transfer_type": "upload",
+            "transfer_type": "upload", "upload_protocol": protocol,
         })
         self._save()
         self.refresh()
@@ -687,12 +688,56 @@ class MainWindow(QMainWindow):
 
     def resume_selected(self):
         record = self._selected()
-        if record and record.get("transfer_type") != "upload" and record["status"] in ("Paused", "Failed", "Queued"):
+        if not record:
+            return
+        if record.get("transfer_type") == "upload":
+            if record.get("status") in ("Paused", "Interrupted", "Failed", "Cancelled"):
+                self._resume_upload_record(record)
+        elif record["status"] in ("Paused", "Failed", "Queued"):
             self._start(record)
+
+    def _resume_upload_record(self, record):
+        protocol = record.get("upload_protocol", "HTTP PUT / WebDAV")
+        password = ""
+        if protocol in ("SFTP", "FTP", "FTPS"):
+            password, ok = QInputDialog.getText(
+                self, f"{protocol} authentication", "Re-enter password (not saved):",
+                QLineEdit.EchoMode.Password
+            )
+            if not ok:
+                return
+        upload_id = record["id"]
+        callbacks = (
+            lambda sent, total, speed, uid=upload_id: self.signals.upload_progress.emit(uid, sent, total, speed),
+            lambda path, uid=upload_id: self.signals.upload_finished.emit(uid),
+            lambda error, uid=upload_id: self.signals.upload_failed.emit(uid, error),
+        )
+        if protocol == "HTTP PUT / WebDAV":
+            job = UploadJob(record["destination_url"], record["url"], *callbacks)
+        elif protocol == "SFTP":
+            job = SFTPUploadJob(record["destination_url"], record["url"], password, *callbacks)
+        else:
+            job = FTPUploadJob(record["destination_url"], record["url"], password, *callbacks)
+        self.upload_jobs[upload_id] = job
+        record["status"] = "Uploading"
+        record["speed"] = 0
+        record.pop("error", None)
+        self._save()
+        self.refresh()
+        job.start()
 
     def pause_selected(self):
         record = self._selected()
-        if record and record["id"] in self.jobs:
+        if not record:
+            return
+        if record.get("transfer_type") == "upload" and record["id"] in self.upload_jobs:
+            job = self.upload_jobs.pop(record["id"])
+            job.cancel()
+            record["status"] = "Paused"
+            record["speed"] = 0
+            self._save()
+            self.refresh()
+        elif record["id"] in self.jobs:
             self.jobs[record["id"]].pause()
             record["status"] = "Paused"
             record["speed"] = 0
