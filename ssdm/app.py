@@ -1416,7 +1416,8 @@ class MainWindow(QMainWindow):
         if record.get("transfer_type") == "torrent":
             if self.torrent_manager:
                 self.torrent_manager.remove(record.get("torrent_id", ""), delete_files=False)
-            self.records.remove(record)
+            if record in self.records:
+                self.records.remove(record)
             self._save()
             self.refresh()
             return
@@ -1595,7 +1596,8 @@ class MainWindow(QMainWindow):
         for record in done:
             if record.get("transfer_type") == "torrent" and self.torrent_manager:
                 self.torrent_manager.remove(record.get("torrent_id", ""), delete_files=False)
-            self.records.remove(record)
+            if record in self.records:
+                self.records.remove(record)
         self._save()
         self.refresh()
 
