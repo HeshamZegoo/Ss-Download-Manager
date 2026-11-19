@@ -2,7 +2,7 @@ import threading
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch as mock_patch
 
 from ssdm.tus_uploader import TusUploadJob
 
@@ -23,7 +23,7 @@ class TusUploadTests(unittest.TestCase):
             return Response(201, {"Location": "/uploads/abc"})
         def head(url, **kwargs):
             return Response(200, {"Upload-Offset": str(state["offset"])})
-        def patch(url, data, **kwargs):
+        def patch_chunk(url, data, **kwargs):
             state["data"].extend(data)
             state["offset"] += len(data)
             return Response(204, {"Upload-Offset": str(state["offset"])})
@@ -38,9 +38,9 @@ class TusUploadTests(unittest.TestCase):
                 lambda error: (failures.append(error), finished.set()),
                 chunk_size=2, session_created=sessions.append,
             )
-            with patch("ssdm.tus_uploader.requests.post", post), \
-                 patch("ssdm.tus_uploader.requests.head", head), \
-                 patch("ssdm.tus_uploader.requests.patch", patch):
+            with mock_patch("ssdm.tus_uploader.requests.post", post), \
+                 mock_patch("ssdm.tus_uploader.requests.head", head), \
+                 mock_patch("ssdm.tus_uploader.requests.patch", patch_chunk):
                 job.start()
                 self.assertTrue(finished.wait(5), "TUS upload did not finish")
         self.assertEqual(failures, [])
