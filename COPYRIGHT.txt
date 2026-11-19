@@ -1,0 +1,6 @@
+Ss Download Manager
+
+Developer: HeshamZegoo
+Copyright © 2026 HeshamZegoo
+
+Project: https://github.com/HeshamZegoo/Ss-Download-Manager
