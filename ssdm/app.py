@@ -50,13 +50,13 @@ class JobSignals(QObject):
 
 
 class AddDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, default_folder=None):
         super().__init__(parent)
         self.setWindowTitle("Add download")
         self.setMinimumWidth(520)
         self.url = QLineEdit()
         self.url.setPlaceholderText("https://example.com/file.zip")
-        self.folder = QLineEdit(str(Path.home() / "Downloads"))
+        self.folder = QLineEdit(str(default_folder or (Path.home() / "Downloads"))))
         browse = QPushButton("Browse…")
         browse.clicked.connect(self.choose_folder)
         folder_row = QHBoxLayout()
@@ -94,6 +94,8 @@ class MainWindow(QMainWindow):
         self.video_jobs = {}
         self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
+        self.default_download_dir = Path(self.settings.value("download_dir", str(Path.home() / "Downloads"))).expanduser()
+        self.default_download_dir.mkdir(parents=True, exist_ok=True)
         self.max_connections = self.settings.value("max_connections", 8, type=int)
         self.max_active_downloads = self.settings.value("max_active_downloads", 3, type=int)
         self.speed_limit_kbps = self.settings.value("speed_limit_kbps", 0, type=int)
@@ -129,6 +131,7 @@ class MainWindow(QMainWindow):
         for label, handler in [
             ("＋ Add URL", self.add_download),
             ("＋ Batch URLs", self.add_batch_downloads),
+            ("Download folder", self.configure_download_folder),
             ("Connections", self.configure_connections),
             ("Queue limit", self.configure_queue_limit),
             ("Speed limit", self.configure_speed_limit),
@@ -273,7 +276,7 @@ class MainWindow(QMainWindow):
             self._schedule_queue()
 
     def add_download(self):
-        dialog = AddDialog(self)
+        dialog = AddDialog(self, self.default_download_dir)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
         url, folder = dialog.values()
@@ -319,6 +322,16 @@ class MainWindow(QMainWindow):
         self._save()
         job.start()
         self.refresh()
+
+    def configure_download_folder(self):
+        folder = QFileDialog.getExistingDirectory(
+            self, "Choose default download folder", str(self.default_download_dir)
+        )
+        if folder:
+            self.default_download_dir = Path(folder).expanduser()
+            self.default_download_dir.mkdir(parents=True, exist_ok=True)
+            self.settings.setValue("download_dir", str(self.default_download_dir))
+            self.statusBar().showMessage(f"Default download folder: {self.default_download_dir}", 5000)
 
     def configure_speed_limit(self):
         value, ok = QInputDialog.getInt(
@@ -441,7 +454,7 @@ class MainWindow(QMainWindow):
             QMessageBox.StandardButton.Yes,
         )
         if answer == QMessageBox.StandardButton.Yes:
-            folder = str(Path.home() / "Downloads")
+            folder = str(self.default_download_dir)
             name = filename_from_url(text)
             destination = str(Path(folder) / name)
             record = {
@@ -461,7 +474,7 @@ class MainWindow(QMainWindow):
         if not ok:
             return
         folder = QFileDialog.getExistingDirectory(
-            self, "Choose download folder", str(Path.home() / "Downloads")
+            self, "Choose download folder", str(self.default_download_dir)
         )
         if not folder:
             return
