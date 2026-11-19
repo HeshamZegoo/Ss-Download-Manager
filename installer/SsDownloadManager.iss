@@ -20,12 +20,12 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional shortcuts:"
 Name: "browserhelper"; Description: "Prepare browser integration"; GroupDescription: "Browser integration:"; Flags: checkedonce
 [Files]
-Source: "dist\SsDownloadManager.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\ssdm-native-host.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "browser\chromium\*"; DestDir: "{app}\browser\chromium"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
-Source: "COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\SsDownloadManager.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\ssdm-native-host.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\browser\chromium\*"; DestDir: "{app}\browser\chromium"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
+Source: "..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 Name: "{group}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"
 Name: "{autodesktop}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"; Tasks: desktopicon
