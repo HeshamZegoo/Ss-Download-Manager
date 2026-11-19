@@ -1,15 +1,16 @@
 # Ss Download Manager
 
-A Windows-first download manager inspired by the supplied IDM-style HTML mockup.
+A Windows-first desktop download manager inspired by IDM-style download tools.
 
-## Current implementation
+## Implemented
 
-- Native desktop UI built with PySide6.
-- Real HTTP/HTTPS downloads (not simulated progress).
-- Pause and resume using HTTP Range when the server supports it.
-- Download queue, per-download progress/speed, and persistent download history.
-- Choose a destination folder and open completed files.
-- Windows executable packaging through GitHub Actions.
+- Native desktop interface built with PySide6.
+- Real HTTP/HTTPS file downloads with pause/resume using HTTP Range when supported.
+- Persistent download history and partial download files.
+- Per-download progress, transfer speed, and status.
+- Choose destination folder, search history, open completed files and folders.
+- Real HTTP(S) PUT file upload with progress reporting. This supports endpoints such as WebDAV servers and pre-signed upload URLs that accept PUT.
+- No application-imposed upload speed cap by default.
 
 ## Requirements
 
@@ -26,19 +27,22 @@ python -m pip install -r requirements.txt
 python main.py
 ```
 
-## Build a Windows executable locally
+## Uploading
+
+Choose **Upload file**, select a local file, then provide an HTTP(S) destination URL that accepts a PUT request. For authenticated services, the endpoint must provide an authorized or pre-signed URL; this initial UI does not yet expose credential profiles or FTP/SFTP.
+
+## Validation
 
 ```powershell
-python -m pip install -r requirements.txt
-pyinstaller --noconfirm --clean --windowed --name "Ss Download Manager" --collect-all PySide6 main.py
+python -m unittest discover -s tests -v
 ```
 
-The executable is written to `dist/Ss Download Manager/`.
+GitHub Actions currently runs validation only. Windows EXE packaging is deliberately deferred until the requested feature set is implemented and tested.
 
-## GitHub Actions
+## Planned / not yet implemented
 
-Push to `main` or run **Build Windows EXE** manually from the Actions tab. The workflow builds a Windows x64 package and uploads it as an artifact. A tagged push (for example `v0.1.0`) also creates a GitHub Release.
+Multi-connection segmented downloads, speed limiter controls, download priorities and concurrency settings, batch URL import, clipboard monitoring, scheduler, browser integration, video extraction, FTP/SFTP upload, upload queue/history, categories, checksum verification, notifications, and tray/background operation.
 
 ## Important limitations
 
-Resume depends on the remote server supporting byte-range requests and keeping the same resource. Some hosts require authentication, cookies, or signed URLs; those must be supplied by the user and may expire. This app does not bypass host, bandwidth, account, or legal restrictions. Multi-connection downloads, browser integration, video extraction, scheduling, and upload management are planned features, not claimed as implemented in this first working foundation.
+Resume depends on the remote server supporting byte-range requests and keeping the same resource. Upload requires a destination service that accepts HTTP PUT; this app does not bypass authentication, host policies, ISP limits, or network restrictions. The program itself does not cap transfer speed by default, but actual throughput is limited by the connection, remote server, and network path.
