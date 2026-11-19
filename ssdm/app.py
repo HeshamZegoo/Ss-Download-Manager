@@ -156,6 +156,7 @@ class TorrentWindow(QDialog):
         self.default_folder = str(default_folder)
         self.setWindowTitle("Torrent Manager — Ss Download Manager")
         self.setMinimumSize(780, 430)
+        self.apply_theme(bool(getattr(parent, "dark_mode", False)))
         root = QVBoxLayout(self)
         root.addWidget(QLabel("Magnet link or .torrent file"))
         source_row = QHBoxLayout()
@@ -204,6 +205,58 @@ class TorrentWindow(QDialog):
         self.rows = []
         self.manager.changed.connect(self.render_rows)
         self.manager.error.connect(self.show_error)
+
+    def apply_theme(self, dark):
+        if dark:
+            self.setStyleSheet("""
+                QDialog { background: #151a22; color: #e8edf5; }
+                QWidget { color: #e8edf5; }
+                QLabel { color: #e8edf5; }
+                QLineEdit, QComboBox, QSpinBox {
+                    background: #202a37; color: #f2f5fa;
+                    border: 1px solid #435168; border-radius: 7px; padding: 7px;
+                }
+                QPushButton {
+                    background: #2d3d52; color: #f5f7fb;
+                    border: 1px solid #455872; border-radius: 7px; padding: 7px 12px;
+                }
+                QPushButton:hover { background: #3b506c; }
+                QTableWidget {
+                    background: #202733; alternate-background-color: #252e3b;
+                    color: #e8edf5; border: 1px solid #354153;
+                    gridline-color: #303b4b; selection-background-color: #344d70;
+                }
+                QHeaderView::section {
+                    background: #273242; color: #f2f5fa;
+                    padding: 8px; border: 0; font-weight: 600;
+                }
+                QScrollBar:vertical { background: #202a37; width: 12px; }
+                QScrollBar::handle:vertical { background: #435168; border-radius: 5px; min-height: 24px; }
+            """)
+        else:
+            self.setStyleSheet("""
+                QDialog { background: #f3f5fb; color: #1d2939; }
+                QWidget { color: #1d2939; }
+                QLabel { color: #1d2939; }
+                QLineEdit, QComboBox, QSpinBox {
+                    background: white; color: #1d2939;
+                    border: 1px solid #d9deeb; border-radius: 7px; padding: 7px;
+                }
+                QPushButton {
+                    background: #eef2fa; color: #1d2939;
+                    border: 1px solid #d9deeb; border-radius: 7px; padding: 7px 12px;
+                }
+                QPushButton:hover { background: #e1e9f8; }
+                QTableWidget {
+                    background: white; alternate-background-color: #f7f9fc;
+                    color: #1d2939; border: 1px solid #e0e5f0;
+                    gridline-color: #edf0f6; selection-background-color: #dce7ff;
+                }
+                QHeaderView::section {
+                    background: #eef1f8; color: #1d2939;
+                    padding: 8px; border: 0; font-weight: 600;
+                }
+            """)
 
     def choose_torrent(self):
         path, _ = QFileDialog.getOpenFileName(self, "Select torrent file", self.folder.text(), "Torrent files (*.torrent)")
@@ -888,6 +941,8 @@ class MainWindow(QMainWindow):
                 QPushButton:hover { background: #e1e9f8; }
                 QStatusBar { background: #f3f5fb; color: #475467; }
             """)
+        if self.torrent_window is not None:
+            self.torrent_window.apply_theme(self.dark_mode)
 
     def configure_download_folder(self):
         folder = QFileDialog.getExistingDirectory(
