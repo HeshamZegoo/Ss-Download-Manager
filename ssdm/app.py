@@ -414,6 +414,7 @@ class MainWindow(QMainWindow):
                 self.settings.value("torrent_download_limit_kib", 0, type=int),
                 self.settings.value("torrent_upload_limit_kib", 0, type=int),
             )
+            self.torrent_manager.changed.connect(self._on_torrents_changed)
             QApplication.instance().aboutToQuit.connect(self.torrent_manager.shutdown)
         except Exception as exc:
             self.torrent_error = str(exc)
@@ -561,6 +562,75 @@ class MainWindow(QMainWindow):
     def open_link_grabber(self):
         self._grabber_open = True
         self._show_standalone_grabber("")
+
+    def _on_torrents_changed(self, rows):
+        """Mirror live torrent state into the unified download list."""
+        now = time.monotonic()
+        should_save = False
+        active_ids = set()
+        for item in rows:
+            torrent_id = str(item.get("id", ""))
+            if not torrent_id:
+                continue
+            record_id = "torrent:" + torrent_id
+            active_ids.add(record_id)
+            name = str(item.get("name") or torrent_id)
+            state = str(item.get("state") or "unknown")
+            state_lower = state.lower()
+            progress = max(0.0, min(100.0, float(item.get("progress", 0.0) or 0.0)))
+            paused = bool(item.get("paused", False))
+            if paused:
+                status = "Paused"
+            elif progress >= 99.999:
+                status = "Completed"
+            elif "queued" in state_lower:
+                status = "Queued"
+            elif "check" in state_lower:
+                status = "Checking"
+            else:
+                status = "Downloading"
+            save_path = str(item.get("save_path") or self.default_download_dir)
+            destination = str(Path(save_path) / name)
+            record = self._by_id(record_id)
+            is_new = record is None
+            if is_new:
+                record = {
+                    "id": record_id, "torrent_id": torrent_id, "transfer_type": "torrent",
+                    "url": "", "name": name, "destination": destination,
+                    "status": status, "downloaded": 0, "total": 0, "speed": 0,
+                    "category": "Torrent", "source": "Torrent",
+                }
+                self.records.insert(0, record)
+                should_save = True
+            previous_status = record.get("status")
+            previous_name = record.get("name")
+            previous_done = int(record.get("downloaded", 0) or 0)
+            record.update({
+                "name": name, "destination": destination, "status": status,
+                "downloaded": int(item.get("downloaded", 0) or 0),
+                "total": int(item.get("total", 0) or 0),
+                "speed": int(item.get("download_rate", 0) or 0),
+                "upload_speed": int(item.get("upload_rate", 0) or 0),
+                "category": "Torrent", "source": "Torrent",
+                "torrent_id": torrent_id, "torrent_state": state,
+                "seeds": int(item.get("seeds", 0) or 0),
+                "peers": int(item.get("peers", 0) or 0),
+                "eta_seconds": item.get("eta_seconds"),
+            })
+            if previous_status != status or previous_name != name:
+                should_save = True
+            if abs(int(record["downloaded"]) - previous_done) >= 1024 * 1024:
+                should_save = True
+        # TorrentManager's own index/fast-resume files are authoritative. Keep
+        # stale UI rows out of the unified list if a torrent was removed there.
+        for record in list(self.records):
+            if record.get("transfer_type") == "torrent" and record.get("id") not in active_ids:
+                self.records.remove(record)
+                should_save = True
+        if should_save and (now - getattr(self, "_last_torrent_record_save", 0.0) >= 5.0):
+            self._last_torrent_record_save = now
+            self._save()
+        self.refresh()
 
     def open_torrent_manager(self):
         if self.torrent_manager is None:
@@ -1219,6 +1289,10 @@ class MainWindow(QMainWindow):
         record = self._selected()
         if not record:
             return
+        if record.get("transfer_type") == "torrent":
+            if self.torrent_manager:
+                self.torrent_manager.resume(record.get("torrent_id", ""))
+            return
         if record.get("transfer_type") == "upload":
             if record.get("status") in ("Paused", "Interrupted", "Failed", "Cancelled"):
                 self._resume_upload_record(record)
@@ -1294,6 +1368,10 @@ class MainWindow(QMainWindow):
         record = self._selected()
         if not record:
             return
+        if record.get("transfer_type") == "torrent":
+            if self.torrent_manager:
+                self.torrent_manager.pause(record.get("torrent_id", ""))
+            return
         if record.get("transfer_type") == "upload" and record["id"] in self.upload_jobs:
             job = self.upload_jobs.pop(record["id"])
             job.cancel()
@@ -1311,6 +1389,10 @@ class MainWindow(QMainWindow):
     def pause_all(self):
         self.pausing_all = True
         for record in self.records:
+            if record.get("transfer_type") == "torrent":
+                if self.torrent_manager:
+                    self.torrent_manager.pause(record.get("torrent_id", ""))
+                continue
             if record["status"] == "Queued":
                 record["status"] = "Paused"
             if record["id"] in self.jobs:
@@ -1330,6 +1412,13 @@ class MainWindow(QMainWindow):
     def remove_selected(self):
         record = self._selected()
         if not record:
+            return
+        if record.get("transfer_type") == "torrent":
+            if self.torrent_manager:
+                self.torrent_manager.remove(record.get("torrent_id", ""), delete_files=False)
+            self.records.remove(record)
+            self._save()
+            self.refresh()
             return
         upload = self.upload_jobs.pop(record["id"], None)
         if upload:
@@ -1504,6 +1593,8 @@ class MainWindow(QMainWindow):
     def clear_completed(self):
         done = [r for r in self.records if r.get("status") == "Completed"]
         for record in done:
+            if record.get("transfer_type") == "torrent" and self.torrent_manager:
+                self.torrent_manager.remove(record.get("torrent_id", ""), delete_files=False)
             self.records.remove(record)
         self._save()
         self.refresh()
