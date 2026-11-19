@@ -91,8 +91,19 @@ class FTPUploadJob:
                 if offset == total:
                     pass
                 else:
-                    ftp.storbinary(f"STOR {filename}", stream, blocksize=256 * 1024,
-                                   callback=report, rest=offset if offset else None)
+                    try:
+                        ftp.storbinary(f"STOR {filename}", stream, blocksize=256 * 1024,
+                                       callback=report, rest=offset if offset else None)
+                    except ftplib.error_perm:
+                        if not offset:
+                            raise
+                        # Some FTP servers expose SIZE but do not implement REST STOR.
+                        # Fall back to a clean overwrite rather than leaving a stuck job.
+                        stream.seek(0)
+                        sent = 0
+                        last[:] = [time.monotonic(), 0]
+                        ftp.storbinary(f"STOR {filename}", stream, blocksize=256 * 1024,
+                                       callback=report)
             if self._cancel.is_set():
                 return
             if sent != total:
