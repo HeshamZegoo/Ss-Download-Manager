@@ -238,7 +238,7 @@ class DownloadJob:
                     raise DownloadError("Server stopped supporting byte ranges; restart this download.")
                 expected_prefix = f"bytes {position}-"
                 returned_range = response.headers.get("Content-Range", "")
-                if not returned_range.startswith(expected_prefix) or not returned_range.endswith("/" + str(total)):
+                if returned_range != f"bytes {position}-{end}/{total}":
                     raise DownloadError("Server returned an invalid segment range.")
                 with path.open("ab" if existing else "wb") as output:
                     for chunk in response.iter_content(self.chunk_size):
@@ -248,7 +248,6 @@ class DownloadJob:
                             continue
                         if not _throttle_download(len(chunk), lambda: self._cancel.is_set() or self._pause.is_set()):
                             break
-                            continue
                         output.write(chunk)
                         with transfer_lock:
                             transferred[0] += len(chunk)
