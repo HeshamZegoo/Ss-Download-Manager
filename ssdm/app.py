@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
 from .uploader import UploadJob
+from .video import VideoDownloadJob
 
 APP_NAME = "Ss Download Manager"
 
@@ -41,6 +42,9 @@ class JobSignals(QObject):
     upload_progress = Signal(str, int, int, float)
     upload_finished = Signal(str)
     upload_failed = Signal(str, str)
+    video_progress = Signal(str, float, str)
+    video_finished = Signal(str, str)
+    video_failed = Signal(str, str)
 
 
 class AddDialog(QDialog):
@@ -85,6 +89,7 @@ class MainWindow(QMainWindow):
         self.records = []
         self.jobs = {}
         self.upload_jobs = {}
+        self.video_jobs = {}
         self.pausing_all = False
         self.settings = QSettings("SsDM", "SsDownloadManager")
         self.max_connections = self.settings.value("max_connections", 8, type=int)
@@ -100,6 +105,9 @@ class MainWindow(QMainWindow):
         self.signals.upload_progress.connect(self.on_upload_progress)
         self.signals.upload_finished.connect(self.on_upload_finished)
         self.signals.upload_failed.connect(self.on_upload_failed)
+        self.signals.video_progress.connect(self.on_video_progress)
+        self.signals.video_finished.connect(self.on_video_finished)
+        self.signals.video_failed.connect(self.on_video_failed)
         self.store = data_dir() / "downloads.json"
         self._load()
 
@@ -127,6 +135,8 @@ class MainWindow(QMainWindow):
             ("Schedule", self.schedule_selected),
             ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
+            ("Video grabber", self.grab_video),
+            ("Cancel video", self.cancel_video),
             ("Cancel upload", self.cancel_upload),
             ("▶ Resume", self.resume_selected),
             ("Ⅱ Pause", self.pause_selected),
@@ -422,6 +432,69 @@ class MainWindow(QMainWindow):
         for record in added:
             self._start(record)
         self.statusBar().showMessage(f"Added {len(added)} valid downloads", 5000)
+
+    def grab_video(self):
+        url, ok = QInputDialog.getText(
+            self, "Video grabber", "Video page URL (supported sites via yt-dlp):"
+        )
+        if not ok or not url.strip():
+            return
+        parsed = urlparse(url.strip())
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            QMessageBox.warning(self, "Invalid URL", "Enter a valid HTTP(S) video page URL.")
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "Save video to", str(Path.home() / "Videos")
+        )
+        if not folder:
+            return
+        video_id = uuid.uuid4().hex
+        job = VideoDownloadJob(
+            url.strip(), folder,
+            lambda percent, speed, uid=video_id: self.signals.video_progress.emit(uid, percent, speed),
+            lambda path, uid=video_id: self.signals.video_finished.emit(uid, path),
+            lambda error, uid=video_id: self.signals.video_failed.emit(uid, error),
+        )
+        self.video_jobs[video_id] = job
+        self.statusBar().showMessage("Video download started…")
+        job.start()
+
+    def cancel_video(self):
+        if not self.video_jobs:
+            self.statusBar().showMessage("No active video downloads", 3000)
+            return
+        video_id = next(reversed(self.video_jobs))
+        job = self.video_jobs.pop(video_id)
+        job.cancel()
+        self.statusBar().showMessage("Video download cancelled", 4000)
+
+    def on_video_progress(self, video_id, percent, speed):
+        if video_id in self.video_jobs:
+            self.statusBar().showMessage(f"Video: {percent:.1f}% · {speed}")
+
+    def on_video_finished(self, video_id, path):
+        self.video_jobs.pop(video_id, None)
+        file_path = Path(path)
+        try:
+            size = file_path.stat().st_size
+        except OSError:
+            size = 0
+        self.records.insert(0, {
+            "id": video_id, "url": "", "name": file_path.name,
+            "destination": str(file_path), "status": "Completed",
+            "downloaded": size, "total": size, "speed": 0,
+            "category": "Video", "source": "Video grabber",
+        })
+        self._save()
+        self.refresh()
+        self.statusBar().showMessage("Video download completed", 5000)
+        if self.tray:
+            self.tray.showMessage(APP_NAME, f"{file_path.name} downloaded.",
+                                  QSystemTrayIcon.MessageIcon.Information, 5000)
+
+    def on_video_failed(self, video_id, error):
+        self.video_jobs.pop(video_id, None)
+        QMessageBox.warning(self, "Video download failed", error)
 
     def upload_file(self):
         source, _ = QFileDialog.getOpenFileName(self, "Choose file to upload")
