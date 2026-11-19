@@ -56,6 +56,13 @@ class BrowserExtensionTests(unittest.TestCase):
         for browser in ("Google/Chrome", "Microsoft/Edge", "BraveSoftware/Brave-Browser", "Mozilla"):
             self.assertIn(browser, script)
 
+    def test_chrome_and_brave_setup_instructions_are_explicit(self):
+        script = (ROOT / "tools/register-browser-host.ps1").read_text()
+        self.assertIn("chrome://extensions/", script)
+        self.assertIn("brave://extensions/", script)
+        self.assertIn("egoijdabioaaoapbipodjmlpikfjbejd", script)
+        self.assertIn("Reload for Ss Download Manager Integration", script)
+
 
 if __name__ == "__main__":
     unittest.main()
