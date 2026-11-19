@@ -19,7 +19,7 @@ $manifest = @{
   allowed_origins = $allowedOrigins
   allowed_extensions = @("ss-download-manager@heshamzegoo")
 } | ConvertTo-Json -Depth 5
-$manifestDir = Join-Path $env:LOCALAPPDATA "SsDownloadManager\\NativeHost"
+$manifestDir = Join-Path $env:LOCALAPPDATA "SsDownloadManager\NativeHost"
 New-Item -Path $manifestDir -ItemType Directory -Force | Out-Null
 $manifestPath = Join-Path $manifestDir "com.ssdownloadmanager.json"
 [System.IO.File]::WriteAllText($manifestPath, $manifest, [System.Text.UTF8Encoding]::new($false))
