@@ -35,9 +35,6 @@ jobs:
       - name: Run unit and integration tests
         run: python -m unittest discover -s tests -v
 
-# The Windows EXE packaging/release workflow will be added back only after
-# the feature set is implemented and the test suite is green.
-
   build-windows-exe:
     needs: tests
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
