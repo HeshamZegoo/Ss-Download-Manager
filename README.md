@@ -15,7 +15,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
-- Real HTTP(S) PUT and SFTP uploads with progress reporting and cancellation; HTTP supports compatible WebDAV endpoints and pre-signed upload URLs.
+- Real HTTP(S) PUT, SFTP, FTP, and explicit FTPS uploads with progress reporting and cancellation. SFTP and FTP resume from an existing remote partial file when the server supports the required operations; HTTP PUT is not resumable unless the remote service implements a resumable protocol.
 - Video grabber for supported sites using yt-dlp, with progress reporting and cancellation.
 - No application-imposed transfer speed cap by default.
 
@@ -30,7 +30,7 @@ python main.py
 
 ## Uploading
 
-Choose **Upload file**, select a local file, then choose HTTP PUT or SFTP. HTTP requires a destination URL that accepts PUT. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. Passwords are not saved.
+Choose **Upload file**, select a local file, then choose HTTP PUT, SFTP, FTP, or FTPS. HTTP requires a destination URL that accepts PUT. SFTP requires an `sftp://username@host:22/remote/path` destination, a password, and a server host key already trusted in the local SSH `known_hosts` file. FTP/FTPS use `ftp://username@host:21/remote/path` or `ftps://username@host:21/remote/path`; prefer FTPS because plain FTP does not encrypt credentials or file contents. SFTP and FTP/FTPS resume from the remote file size when supported. Passwords are not saved.
 
 ## Browser integration (source preview)
 
@@ -60,7 +60,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- FTP/FTPS uploads, resumable uploads, upload queue controls, and polished settings/preferences.
+- A resumable HTTP upload mode for servers implementing the tus protocol, richer upload queue controls, and polished settings/preferences.
 
 ## Limitations
 
