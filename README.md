@@ -43,7 +43,7 @@ The native host executable is produced separately during final packaging:
 .\tools\build-native-host.ps1
 ```
 
-Copy `dist\ssdm-native-host.exe` into the application install directory, load the matching extension directory as an unpacked extension, then register the host from a current-user PowerShell session. Pass all Chromium extension IDs (Chrome, Edge, and Brave) returned by each browser's extension details page:
+Copy `dist\ssdm-native-host.exe` into the application install directory. To create ZIP packages for distribution, run `\.\tools\package-browser-extensions.ps1`. Load the matching extension directory as an unpacked extension, then register the host from a current-user PowerShell session. Pass all Chromium extension IDs (Chrome, Edge, and Brave) returned by each browser's extension details page:
 
 ```powershell
 .\browser\install-browser-host.ps1 -InstallDir "C:\Program Files\Ss Download Manager" -ChromiumExtensionIds @("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","cccccccccccccccccccccccccccccccc")
