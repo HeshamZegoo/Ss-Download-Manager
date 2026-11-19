@@ -16,16 +16,19 @@ function sendUrl(url, source = "firefox", downloadId = null) {
   let replied = false;
   port.onMessage.addListener(reply => {
     replied = true;
-    if (reply?.ok) notify("Link sent to download queue.");
-    else notify(reply?.error || "Could not send link.", true);
+    if (reply?.ok) {
+      notify("Link sent to download queue.");
+      if (downloadId !== null) browser.downloads.cancel(downloadId).catch(() => {});
+    } else {
+      notify(reply?.error || "Could not send link.", true);
+    }
     port.disconnect();
   });
   port.onDisconnect.addListener(() => {
     if (!replied) notify("Native host disconnected. Check desktop installation.", true);
   });
   port.postMessage({url, source});
-  // The native host persists the URL; cancel Firefox's copy immediately.
-  if (downloadId !== null) browser.downloads.cancel(downloadId).catch(() => {});
+  // Cancel Firefox's copy only after the native host confirms it persisted the URL.
 }
 browser.runtime.onInstalled.addListener(async () => {
   await browser.storage.local.set({ssdmActivatedAt: Date.now()});
