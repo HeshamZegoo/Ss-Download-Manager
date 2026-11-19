@@ -14,6 +14,37 @@ from urllib.parse import unquote, urlparse
 import requests
 
 
+_limit_lock = threading.Lock()
+_limit_kbps = 0
+_next_transfer_time = 0.0
+
+
+def set_download_speed_limit(kbps: int):
+    """Set an aggregate download cap in KiB/s; zero means unlimited."""
+    global _limit_kbps, _next_transfer_time
+    with _limit_lock:
+        _limit_kbps = max(0, int(kbps))
+        _next_transfer_time = time.monotonic()
+
+
+def _throttle_download(amount: int, stopped) -> bool:
+    global _next_transfer_time
+    with _limit_lock:
+        limit = _limit_kbps
+        if limit <= 0:
+            return not stopped()
+        now = time.monotonic()
+        start = max(now, _next_transfer_time)
+        _next_transfer_time = start + amount / (limit * 1024)
+    while True:
+        if stopped():
+            return False
+        remaining = start - time.monotonic()
+        if remaining <= 0:
+            return True
+        time.sleep(min(remaining, 0.1))
+
+
 class DownloadError(Exception):
     pass
 
@@ -139,6 +170,8 @@ class DownloadJob:
                         break
                     if not chunk:
                         continue
+                    if not _throttle_download(len(chunk), lambda: self._cancel.is_set() or self._pause.is_set()):
+                        break
                     output.write(chunk)
                     received += len(chunk)
                     now = time.monotonic()
@@ -212,6 +245,9 @@ class DownloadJob:
                         if self._cancel.is_set() or self._pause.is_set():
                             break
                         if not chunk:
+                            continue
+                        if not _throttle_download(len(chunk), lambda: self._cancel.is_set() or self._pause.is_set()):
+                            break
                             continue
                         output.write(chunk)
                         with transfer_lock:
