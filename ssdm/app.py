@@ -1090,7 +1090,11 @@ class MainWindow(QMainWindow):
                 "connections": r.get("connections", self.max_connections),
             } for r in self.records]
             encoded = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
-            self.web_view.page().runJavaScript("if(window.ssdmRender) window.ssdmRender(" + encoded + ");")
+            theme = "dark" if self.dark_mode else "light"
+            self.web_view.page().runJavaScript(
+                "document.documentElement.dataset.theme = '" + theme + "'; "
+                "if(window.ssdmRender) window.ssdmRender(" + encoded + ");"
+            )
         self.statusBar().showMessage(f"{len(self.records)} downloads · {sum(r['status'] == 'Downloading' for r in self.records)} active")
 
     def select_record_by_id(self, record_id):
@@ -1112,7 +1116,7 @@ class MainWindow(QMainWindow):
         record = {
             "id": uuid.uuid4().hex, "url": url.strip(), "name": name, "destination": destination,
             "status": "Queued", "downloaded": 0, "total": None, "speed": 0,
-            "category": _category(name), "connections": max(1, min(int(connections), 32)),
+            "category": {"Compressed": "Archives", "Music": "Audio"}.get(category, category if category in ("Archives", "Documents", "Audio", "Video", "Programs", "Images") else _category(name)), "connections": max(1, min(int(connections), 32)),
         }
         self.records.insert(0, record)
         self._save()
