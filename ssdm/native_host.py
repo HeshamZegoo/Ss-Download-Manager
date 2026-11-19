@@ -1,4 +1,6 @@
-"""Native-messaging host used by the browser extensions.
+"""Copyright © 2026 HeshamZegoo.
+
+Native-messaging host used by the browser extensions.
 
 The packaged Windows host executable runs this module. It accepts one or more
 Chrome/Firefox native-messaging JSON frames and atomically places validated
