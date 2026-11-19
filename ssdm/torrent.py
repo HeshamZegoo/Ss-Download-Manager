@@ -191,6 +191,7 @@ class TorrentManager(QObject):
                 "seeds": int(getattr(status, "num_seeds", 0) or 0),
                 "peers": int(getattr(status, "num_peers", 0) or 0),
                 "state": str(getattr(status, "state", "unknown")),
+                "paused": bool(getattr(status, "paused", False)),
                 "save_path": self.meta.get(info_hash, {}).get("save_path", ""),
             })
         self.changed.emit(rows)
