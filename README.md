@@ -9,7 +9,7 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Persistent download history and retained partial download files.
 - Per-download progress, speed, status, and search.
 - Batch URL import (one URL per line), configurable per-file connection count, and a bounded active-download queue.
-- Persistent default download-folder preference shared by manual, batch, clipboard, and browser-added downloads.
+- Persistent default download-folder preference shared by manual, batch, clipboard, and browser-added downloads, plus light/dark themes.
 - Queue ordering controls, a configurable simultaneous-download limit, and a clipboard URL monitor with user confirmation.
 - Scheduled download start times, an optional aggregate download speed cap, and system-tray notifications/background operation where supported.
 - Upload queue with configurable concurrency, ordering, progress, cancellation, and pause/resume controls; SFTP and FTP/FTPS continue from the remote partial file when supported, while plain HTTP PUT restarts from the beginning.
@@ -60,7 +60,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- Resumable HTTP uploads for servers implementing the tus protocol and polished theme/preferences controls.
+- Resumable HTTP uploads for servers implementing the tus protocol.
 
 ## Limitations
 
