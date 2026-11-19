@@ -184,6 +184,7 @@ class MainWindow(QMainWindow):
         for col in range(1, 7):
             self.table.horizontalHeader().setSectionResizeMode(col, QHeaderView.ResizeMode.ResizeToContents)
         self.table.hide()
+        self.table.setParent(self)
         self.web_view = QWebEngineView(self)
         self.web_channel = QWebChannel(self.web_view.page())
         self.html_bridge = HtmlBridge(self)
