@@ -37,3 +37,57 @@ jobs:
 
 # The Windows EXE packaging/release workflow will be added back only after
 # the feature set is implemented and the test suite is green.
+
+  build-windows-exe:
+    needs: tests
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Build desktop application EXE
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name SsDownloadManager
+          --collect-all yt_dlp
+          --collect-all paramiko
+          --collect-all requests
+          --collect-all certifi
+          main.py
+      - name: Build browser native-messaging host
+        run: pyinstaller --noconfirm --onefile --console --name ssdm-native-host ssdm/native_host.py
+      - name: Package browser extensions and installer
+        shell: pwsh
+        run: |
+          ./tools/package-browser-extensions.ps1
+          Copy-Item browser/install-browser-host.ps1 dist/browser-extensions/
+          @"
+          Ss Download Manager - Windows package
+          1. Run SsDownloadManager.exe.
+          2. Install the Chrome/Edge/Brave extension from the Chromium extension package.
+          3. Install the Firefox extension from the Firefox extension package.
+          4. Copy ssdm-native-host.exe beside the application executable.
+          5. Run install-browser-host.ps1 in PowerShell with the install directory and the extension IDs for Chrome, Edge, and Brave.
+          "@ | Set-Content dist/README-Install.txt
+      - name: Generate SHA-256 checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -Recurse -File | Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash)  $($_.Path)" } |
+            Set-Content dist/SHA256SUMS.txt
+      - name: Upload Windows release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Ss-Download-Manager-Windows
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
