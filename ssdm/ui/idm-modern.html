@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ss Download Manager</title>
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+<style>
+:root{--bg:#f4f6fb;--panel:#fff;--line:#e5e8f0;--text:#171b2b;--mut:#6b7390;--pri:#4f6bff;--pri2:#8b5cf6;--ok:#16a34a;--warn:#f59e0b;--err:#ef4444;--hover:#eef1fb;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1020;--panel:#151a2e;--line:#242b47;--text:#e8ebf8;--mut:#8f99bf;--hover:#1d2440;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0d1020;--panel:#151a2e;--line:#242b47;--text:#e8ebf8;--mut:#8f99bf;--hover:#1d2440;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:14px/1.4 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+.app{flex:1;display:flex;flex-direction:column;min-height:0;max-width:1280px;width:100%;margin:0 auto}
+header{display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--pri),var(--pri2));display:grid;place-items:center;color:#fff;font-weight:700}
+.brand b{display:block;font-size:15px}.brand span{font-size:11px;color:var(--mut)}
+.search{flex:1;max-width:360px;margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--text);font:inherit;min-width:0}
+.tb{display:flex;gap:6px;padding:10px 16px;overflow-x:auto;background:var(--panel);border-bottom:1px solid var(--line)}
+.tb button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:10px;font-size:11px;color:var(--mut);min-width:64px;white-space:nowrap}
+.tb button:hover{background:var(--hover);color:var(--text)}
+.tb button .i{font-size:18px;line-height:1}
+.tb .add{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff}
+.tb .add:hover{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff;filter:brightness(1.08)}
+.main{flex:1;display:flex;min-height:0}
+aside{width:210px;padding:12px;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;flex:none}
+aside h6{margin:12px 8px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.cat{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:9px;text-align:left}
+.cat:hover{background:var(--hover)}.cat.on{background:var(--hover);color:var(--pri);font-weight:600}
+.cat em{margin-left:auto;font-style:normal;font-size:11px;color:var(--mut)}
+.content{flex:1;display:flex;flex-direction:column;min-width:0}
+.list{flex:1;overflow:auto;padding:12px 16px}
+.row{display:grid;grid-template-columns:40px 1fr 110px 90px 28px;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:8px;cursor:pointer}
+.row:hover{border-color:var(--pri)}.row.sel{border-color:var(--pri);box-shadow:0 0 0 2px color-mix(in srgb,var(--pri) 25%,transparent)}
+.ic{width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:18px;background:var(--hover)}
+.nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:12px;color:var(--mut);margin-top:2px}
+.bar{height:6px;border-radius:99px;background:var(--hover);overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--pri),var(--pri2));transition:width .3s}
+.done .bar i{background:var(--ok)}.paused .bar i{background:var(--warn)}.failed .bar i{background:var(--err)}
+.st{font-size:12px;font-weight:600}.st.downloading{color:var(--pri)}.st.done{color:var(--ok)}.st.paused{color:var(--warn)}.st.failed{color:var(--err)}
+.x{color:var(--mut);border-radius:8px;width:28px;height:28px}.x:hover{background:var(--hover);color:var(--err)}
+.detail{background:var(--panel);border-top:1px solid var(--line);padding:12px 16px}
+.detail h4{margin:0 0 8px;font-size:13px}
+.segs{display:grid;grid-template-columns:repeat(8,1fr);gap:4px;margin-bottom:10px}
+.segs i{height:8px;border-radius:4px;background:var(--hover);overflow:hidden;display:block}
+.segs i b{display:block;height:100%;background:var(--pri);width:0}
+.stats{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--mut)}.stats span b{color:var(--text);display:block;font-size:14px}
+footer{display:flex;gap:16px;padding:8px 16px;font-size:12px;color:var(--mut);background:var(--panel);border-top:1px solid var(--line)}
+footer .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px}
+.modal{position:fixed;inset:0;background:rgba(5,8,20,.55);display:none;place-items:center;padding:16px;z-index:10}
+.modal.show{display:grid}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;width:100%;max-width:440px}
+.card h3{margin:0 0 12px}.card label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+.card input,.card select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.btn{padding:9px 16px;border-radius:10px;background:var(--hover)}.btn.p{background:linear-gradient(135deg,var(--pri),var(--pri2));color:#fff}
+@media(max-width:760px){aside{display:none}.row{grid-template-columns:40px 1fr 28px}.row .sp,.row .st{display:none}.tb button{min-width:56px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="logo">Ss</div>
+  <div class="brand"><b>Ss Download Manager</b><span>for Windows · by HeshamZegoo</span></div>
+  <input class="search" id="q" placeholder="Search downloads…">
+  <button class="x" id="theme" title="Toggle theme">◐</button>
+</header>
+<div class="tb">
+  <button class="add" id="bAdd"><span class="i">＋</span>Add URL</button>
+  <button id="bResume"><span class="i">▶</span>Resume</button>
+  <button id="bStop"><span class="i">❚❚</span>Pause</button>
+  <button id="bStopAll"><span class="i">■</span>Pause all</button>
+  <button id="bDel"><span class="i">🗑</span>Delete</button>
+  <button id="bClear"><span class="i">✓</span>Clear done</button>
+  <button id="bSchedule"><span class="i">⏱</span>Scheduler</button>
+  <button id="bUpload"><span class="i">⬆</span>Upload</button>
+  <button id="bVideo"><span class="i">🎬</span>Video grabber</button>
+  <button id="bOptions"><span class="i">⚙</span>Options</button>
+</div>
+<div class="main">
+  <aside id="side"></aside>
+  <div class="content">
+    <div class="list" id="list"></div>
+    <div class="detail" id="detail"></div>
+  </div>
+</div>
+<footer><span><i class="dot"></i>Connected</span><span id="fTot">0 downloads</span><span id="fSpd" style="margin-left:auto">0 MB/s</span><span>Copyright © 2026 HeshamZegoo</span></footer>
+</div>
+
+<div class="modal" id="modal"><div class="card">
+  <h3>Add new download</h3>
+  <label>URL</label><input id="mUrl" placeholder="https://example.com/file.zip">
+  <label>Save to</label><select id="mCat"><option>Compressed</option><option>Documents</option><option>Music</option><option>Video</option><option>Programs</option></select>
+  <label>Connections</label><select id="mConn"><option>8</option><option>16</option><option>32</option></select>
+  <div class="acts"><button class="btn" id="mCancel">Cancel</button><button class="btn p" id="mOk">Start download</button></div>
+</div></div>
+
+<script>
+var CATS=[["All","📁"],["Archives","🗜"],["Documents","📄"],["Audio","🎵"],["Video","🎬"],["Programs","💾"],["Images","🖼"],["Upload","⬆"],["Other","📦"]];
+var ICON={Archives:"🗜",Documents:"📄",Audio:"🎵",Video:"🎬",Programs:"💾",Images:"🖼",Upload:"⬆",Other:"📦"};
+var D=[],cat="All",sel="",term="",bridge=null;
+var $=function(i){return document.getElementById(i)};
+function esc(v){return String(v==null?"":v).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function fmt(bytes){var n=Number(bytes||0);if(n>=1073741824)return(n/1073741824).toFixed(2)+" GB";if(n>=1048576)return(n/1048576).toFixed(1)+" MB";if(n>=1024)return(n/1024).toFixed(1)+" KB";return n.toFixed(0)+" B"}
+function vis(){return D.filter(function(d){return(cat==="All"||d.c===cat)&&d.n.toLowerCase().indexOf(term)>-1})}
+function side(){$("side").innerHTML="<h6>Categories</h6>"+CATS.map(function(c){var n=D.filter(function(d){return c[0]==="All"||d.c===c[0]}).length;return '<button class=\"cat'+(cat===c[0]?" on":"")+'\" data-c=\"'+esc(c[0])+'\">'+c[1]+" "+esc(c[0])+"<em>"+n+"</em></button>"}).join("")+"<h6>Status</h6><button class='cat' data-c='Active'>⬇ Active<em>"+D.filter(function(d){return d.st==="downloading"||d.st==="queued"}).length+"</em></button>"}
+function list(){var v=vis();$("list").innerHTML=v.map(function(d){var p=Math.max(0,Math.min(100,d.p||0));return '<div class=\"row '+esc(d.st)+(d.id===sel?" sel":"")+'\" data-id=\"'+esc(d.id)+'\"><div class=\"ic\">'+(ICON[d.c]||"📦")+'</div><div style=\"min-width:0\"><div class=\"nm\">'+esc(d.n)+'</div><div class=\"meta\">'+fmt(d.downloaded)+" of "+(d.size?fmt(d.size):"Unknown size")+" · "+p.toFixed(1)+'%</div><div class=\"bar\"><i style=\"width:'+p+'%\"></i></div></div><div class=\"sp meta\">'+(d.st==="downloading"?fmt(d.speed)+"/s":"—")+'</div><div class=\"st '+esc(d.st)+'\">'+esc(d.status)+'</div><button class=\"x\" data-x=\"'+esc(d.id)+'\">✕</button></div>'}).join("")||'<div class=\"meta\" style=\"padding:30px;text-align:center\">No downloads here</div>'}
+function detail(){var d=D.find(function(x){return x.id===sel});if(!d){$("detail").innerHTML="<h4>No download selected</h4>";return}var p=Math.max(0,Math.min(100,d.p||0)),seg=[];for(var k=0;k<8;k++){var w=Math.max(0,Math.min(100,p*8-k*100));seg.push('<i><b style=\"width:'+w+'%\"></b></i>')}$("detail").innerHTML="<h4>"+esc(d.n)+"</h4><div class='segs'>"+seg.join("")+"</div><div class='stats'><span>Size<b>"+(d.size?fmt(d.size):"Unknown")+"</b></span><span>Downloaded<b>"+fmt(d.downloaded)+"</b></span><span>Speed<b>"+(d.speed?fmt(d.speed)+"/s":"0")+"</b></span><span>Connections<b>"+(d.connections||"—")+"</b></span><span>Category<b>"+esc(d.c)+"</b></span><span>Location<b>"+esc(d.destination||"—")+"</b></span></div>"+(d.error?"<div class='meta' style='color:var(--err);margin-top:8px'>"+esc(d.error)+"</div>":"")}
+function foot(){var t=D.reduce(function(a,d){return a+(d.speed||0)},0);$("fSpd").textContent="⬇ "+fmt(t)+"/s";$("fTot").textContent=D.length+" downloads"}
+function all(){side();list();detail();foot()}
+window.ssdmRender=function(records){D=(records||[]).map(function(r){var total=Number(r.total||0),done=Number(r.downloaded||0),status=r.status||"Queued",st=status==="Downloading"||status==="Uploading"?"downloading":status==="Completed"?"done":status==="Failed"?"failed":status==="Queued"?"queued":"paused";return{id:r.id,n:r.name||"download",c:r.category||"Other",size:total,downloaded:done,speed:Number(r.speed||0),p:total?done/total*100:0,st:st,status:status,connections:r.connections||0,destination:r.destination||"",error:r.error||""}});if(!D.some(function(d){return d.id===sel}))sel=D.length?D[0].id:"";all()};
+function act(action){if(bridge&&sel)bridge.action(sel,action)}
+$("side").onclick=function(e){var b=e.target.closest(".cat");if(b){cat=b.dataset.c==="Active"?"All":b.dataset.c;all()}};
+$("list").onclick=function(e){var x=e.target.closest("[data-x]");if(x){sel=x.dataset.x;act("delete");return}var r=e.target.closest(".row");if(r){sel=r.dataset.id;all()}};
+$("q").oninput=function(e){term=e.target.value.toLowerCase();list()};
+$("bResume").onclick=function(){act("resume")};$("bStop").onclick=function(){act("pause")};$("bStopAll").onclick=function(){if(bridge)bridge.pauseAll()};$("bDel").onclick=function(){act("delete")};$("bClear").onclick=function(){if(bridge)bridge.clearDone()};
+$("bAdd").onclick=function(){$("modal").classList.add("show");$("mUrl").focus()};$("mCancel").onclick=function(){$("modal").classList.remove("show")};
+$("mOk").onclick=function(){var u=$("mUrl").value.trim();if(!u){$("mUrl").focus();return}if(bridge)bridge.addDownload(u,$("mCat").value,parseInt($("mConn").value,10)||8);$("mUrl").value="";$("modal").classList.remove("show")};
+$("bSchedule").onclick=function(){act("schedule")};$("bUpload").onclick=function(){if(bridge)bridge.uploadFile()};$("bVideo").onclick=function(){if(bridge)bridge.grabVideo()};$("bOptions").onclick=function(){if(bridge)bridge.options()};
+$("theme").onclick=function(){if(bridge)bridge.toggleTheme();var r=document.documentElement;r.dataset.theme=r.dataset.theme==="dark"?"light":"dark"};
+new QWebChannel(qt.webChannelTransport,function(channel){bridge=channel.objects.bridge;bridge.requestRefresh()});
+</script>
+</body>
+</html>
