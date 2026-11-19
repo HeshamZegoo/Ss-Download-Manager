@@ -34,6 +34,7 @@ class TorrentManager(QObject):
                               | lt.alert.category_t.status_notification
                               | lt.alert.category_t.storage_notification),
         })
+        self.limits = {"max_active": 3, "download_kib": 0, "upload_kib": 0}
         self.handles = {}
         self.meta = {}
         self._last_save = 0.0
@@ -42,6 +43,23 @@ class TorrentManager(QObject):
         self.timer.timeout.connect(self._tick)
         self._restore()
         self.timer.start()
+
+    def set_limits(self, max_active=3, download_kib=0, upload_kib=0):
+        """Set the global torrent queue and bandwidth limits; zero means unlimited."""
+        max_active = max(1, min(int(max_active), 64))
+        download_kib = max(0, int(download_kib))
+        upload_kib = max(0, int(upload_kib))
+        settings = {
+            "active_downloads": max_active,
+            "download_rate_limit": download_kib * 1024,
+            "upload_rate_limit": upload_kib * 1024,
+        }
+        self.session.apply_settings(settings)
+        self.limits = {
+            "max_active": max_active,
+            "download_kib": download_kib,
+            "upload_kib": upload_kib,
+        }
 
     @staticmethod
     def valid_magnet(uri: str) -> bool:
@@ -155,6 +173,11 @@ class TorrentManager(QObject):
                 "total": total,
                 "download_rate": int(getattr(status, "download_rate", 0) or 0),
                 "upload_rate": int(getattr(status, "upload_rate", 0) or 0),
+                "eta_seconds": (
+                    max(0, int((total - done) / int(getattr(status, "download_rate", 0))))
+                    if int(getattr(status, "download_rate", 0) or 0) > 0 and total > done else
+                    (0 if total > 0 and done >= total else None)
+                ),
                 "seeds": int(getattr(status, "num_seeds", 0) or 0),
                 "peers": int(getattr(status, "num_peers", 0) or 0),
                 "state": str(getattr(status, "state", "unknown")),
