@@ -856,6 +856,13 @@ class MainWindow(QMainWindow):
             self._save()
             self.refresh()
             self.statusBar().showMessage(f"Added {added} link(s) from browser", 5000)
+            if self.tray and self.tray.isVisible():
+                latest = next((record for record in self.records if record.get("source", "").startswith(("chromium", "firefox"))), None)
+                label = latest.get("name", "New download") if latest else f"{added} new download(s)"
+                detail = f"{label} added to Ss Download Manager"
+                if added > 1:
+                    detail = f"{added} new browser downloads added to Ss Download Manager"
+                self.tray.showMessage(APP_NAME, detail, QSystemTrayIcon.MessageIcon.Information, 5000)
             self._schedule_queue()
 
     def add_download(self):
