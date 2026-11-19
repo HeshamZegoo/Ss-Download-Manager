@@ -57,3 +57,8 @@ Pushes to `main` run source validation and tests only. The Windows EXE/setup pac
 ## Limitations
 
 Resume depends on the server supporting byte ranges and keeping the same resource. Scheduled tasks run only while the application remains running. HTTP upload requires a destination service that accepts PUT. Actual transfer speed depends on the user's network, remote server, and network path; the application does not bypass authentication, host policies, or ISP limits.
+
+
+## Unified torrent list
+
+Torrent jobs are mirrored into the main **All** list and the **Torrent** category, with progress, size, rates, seeds, peers, and ETA. Pause, Resume, Remove, and Clear completed work from the same list.
