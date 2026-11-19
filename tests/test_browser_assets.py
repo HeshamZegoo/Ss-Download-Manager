@@ -21,7 +21,7 @@ class BrowserExtensionTests(unittest.TestCase):
         self.assertIn("chrome.downloads.cancel", worker)
         self.assertIn("ssdmActivatedAt", worker)
         self.assertIn("startedAt < cutoff", worker)
-        self.assertLess(worker.index("port.postMessage({url, source})"), worker.index("chrome.downloads.cancel(downloadId"))
+        self.assertLess(worker.index("if (reply?.ok)"), worker.index("chrome.downloads.cancel(downloadId"))
 
     def test_firefox_extension_uses_native_messaging_and_downloads(self):
         manifest = json.loads((ROOT / "browser/firefox/manifest.json").read_text())
@@ -38,7 +38,7 @@ class BrowserExtensionTests(unittest.TestCase):
         self.assertIn("browser.downloads.cancel", background)
         self.assertIn("ssdmActivatedAt", background)
         self.assertIn("startedAt < cutoff", background)
-        self.assertLess(background.index("port.postMessage({url, source})"), background.index("browser.downloads.cancel(downloadId"))
+        self.assertLess(background.index("if (reply?.ok)"), background.index("browser.downloads.cancel(downloadId"))
 
     def test_chromium_key_matches_pre_registered_extension_id(self):
         manifest = json.loads((ROOT / "browser/chromium/manifest.json").read_text())
