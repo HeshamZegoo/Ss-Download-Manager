@@ -25,6 +25,7 @@ from .downloader import DownloadJob, filename_from_url, set_download_speed_limit
 from .uploader import UploadJob
 from .sftp_uploader import SFTPUploadJob
 from .ftp_uploader import FTPUploadJob
+from .tus_uploader import TusUploadJob
 from .video import VideoDownloadJob
 
 APP_NAME = "Ss Download Manager"
@@ -44,6 +45,7 @@ class JobSignals(QObject):
     upload_progress = Signal(str, int, int, float)
     upload_finished = Signal(str)
     upload_failed = Signal(str, str)
+    upload_session = Signal(str, str)
     video_progress = Signal(str, float, str)
     video_finished = Signal(str, str)
     video_failed = Signal(str, str)
@@ -112,6 +114,7 @@ class MainWindow(QMainWindow):
         self.signals.upload_progress.connect(self.on_upload_progress)
         self.signals.upload_finished.connect(self.on_upload_finished)
         self.signals.upload_failed.connect(self.on_upload_failed)
+        self.signals.upload_session.connect(self.on_upload_session)
         self.signals.video_progress.connect(self.on_video_progress)
         self.signals.video_finished.connect(self.on_video_finished)
         self.signals.video_failed.connect(self.on_video_failed)
@@ -619,16 +622,17 @@ class MainWindow(QMainWindow):
             return
         protocol, ok = QInputDialog.getItem(
             self, "Upload protocol", "Choose upload destination type:",
-            ["HTTP PUT / WebDAV", "SFTP", "FTP", "FTPS"], 0, False
+            ["HTTP PUT / WebDAV", "TUS resumable", "SFTP", "FTP", "FTPS"], 0, False
         )
         if not ok:
             return
         destination, ok = QInputDialog.getText(
             self, "Upload destination",
             "HTTP(S) PUT URL:" if protocol.startswith("HTTP") else
-            ("SFTP URL (host key must already be trusted): sftp://user@host:22/remote/path"
-             if protocol == "SFTP" else
-             "FTP/FTPS URL: ftp://user@host:21/remote/path or ftps://user@host:21/remote/path")
+            ("TUS endpoint URL (server must implement tus 1.0):" if protocol == "TUS resumable" else
+             ("SFTP URL (host key must already be trusted): sftp://user@host:22/remote/path"
+              if protocol == "SFTP" else
+              "FTP/FTPS URL: ftp://user@host:21/remote/path or ftps://user@host:21/remote/path"))
         )
         if not ok or not destination.strip():
             return
@@ -636,6 +640,11 @@ class MainWindow(QMainWindow):
         if protocol.startswith("HTTP"):
             if parsed.scheme not in ("http", "https") or not parsed.netloc:
                 QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP or HTTPS URL.")
+                return
+            password = ""
+        elif protocol == "TUS resumable":
+            if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                QMessageBox.warning(self, "Invalid destination", "Enter a valid HTTP(S) TUS endpoint.")
                 return
             password = ""
         elif protocol == "SFTP":
@@ -690,6 +699,12 @@ class MainWindow(QMainWindow):
         self._schedule_upload_queue()
         self.statusBar().showMessage(f"Cancelled upload: {job.source.name}", 5000)
 
+    def on_upload_session(self, upload_id, upload_url):
+        record = self._by_id(upload_id)
+        if record:
+            record["upload_session_url"] = upload_url
+            self._save()
+
     def on_upload_progress(self, upload_id, sent, total, speed):
         job = self.upload_jobs.get(upload_id)
         record = self._by_id(upload_id)
@@ -709,6 +724,7 @@ class MainWindow(QMainWindow):
         record = self._by_id(upload_id)
         if record:
             record["status"] = "Completed"
+            record.pop("upload_session_url", None)
             record["downloaded"] = record.get("total") or 0
             record["speed"] = 0
         self._save()
@@ -799,6 +815,12 @@ class MainWindow(QMainWindow):
         )
         if protocol == "HTTP PUT / WebDAV":
             job = UploadJob(record["destination"], record["url"], *callbacks)
+        elif protocol == "TUS resumable":
+            job = TusUploadJob(
+                record["destination"], record["url"], *callbacks,
+                upload_url=record.get("upload_session_url"),
+                session_created=lambda url, uid=upload_id: self.signals.upload_session.emit(uid, url),
+            )
         elif protocol == "SFTP":
             job = SFTPUploadJob(record["destination"], record["url"], password, *callbacks)
         else:
