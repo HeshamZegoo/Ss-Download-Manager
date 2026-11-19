@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ftplib
 import ssl
+import ssl
 import threading
 import time
 from pathlib import Path
@@ -51,8 +52,8 @@ class FTPUploadJob:
             if parsed.scheme not in ("ftp", "ftps") or not parsed.hostname or not parsed.path:
                 raise ValueError("Use ftp://user@host:21/remote/file or ftps://user@host:21/remote/file")
             total = self.source.stat().st_size
-            cls = ftplib.FTP_TLS if parsed.scheme == "ftps" else ftplib.FTP
-            ftp = cls(timeout=30)
+            ftp = (ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=30)
+                   if parsed.scheme == "ftps" else ftplib.FTP(timeout=30))
             self._ftp = ftp
             ftp.connect(parsed.hostname, parsed.port or 21)
             username = unquote(parsed.username or "anonymous")
