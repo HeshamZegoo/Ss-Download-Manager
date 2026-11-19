@@ -1556,6 +1556,10 @@ class MainWindow(QMainWindow):
                 "total": r.get("total"), "speed": r.get("speed", 0),
                 "destination": r.get("destination", ""), "error": r.get("error", ""),
                 "connections": r.get("connections", self.max_connections),
+                "transfer_type": r.get("transfer_type", ""),
+                "upload_speed": r.get("upload_speed", 0),
+                "seeds": r.get("seeds", 0), "peers": r.get("peers", 0),
+                "eta_seconds": r.get("eta_seconds"),
             } for r in self.records]
             encoded = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
             theme = "dark" if self.dark_mode else "light"
