@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 from PySide6.QtCore import Qt, QTimer, Signal, QObject
 from PySide6.QtGui import QAction, QDesktopServices
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QUrl, QSettings
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog,
     QFormLayout, QHBoxLayout, QHeaderView, QLineEdit, QMainWindow,
@@ -84,6 +84,9 @@ class MainWindow(QMainWindow):
         self.records = []
         self.jobs = {}
         self.upload_jobs = {}
+        self.settings = QSettings("SsDM", "SsDownloadManager")
+        self.max_connections = self.settings.value("max_connections", 8, type=int)
+        self.clipboard_monitoring = False
         self.signals = JobSignals()
         self.signals.progress.connect(self.on_progress)
         self.signals.finished.connect(self.on_finished)
@@ -111,6 +114,8 @@ class MainWindow(QMainWindow):
         for label, handler in [
             ("＋ Add URL", self.add_download),
             ("＋ Batch URLs", self.add_batch_downloads),
+            ("Connections", self.configure_connections),
+            ("Clipboard monitor: Off", self.toggle_clipboard_monitor),
             ("↑ Upload file", self.upload_file),
             ("▶ Resume", self.resume_selected),
             ("Ⅱ Pause", self.pause_selected),
@@ -200,11 +205,66 @@ class MainWindow(QMainWindow):
             lambda path, jid=job_id: self.signals.finished.emit(jid, path),
             lambda error, jid=job_id: self.signals.failed.emit(jid, error),
             lambda jid=job_id: self.signals.paused.emit(jid),
+            max_connections=self.max_connections,
         )
         self.jobs[job_id] = job
         self._save()
         job.start()
         self.refresh()
+
+    def configure_connections(self):
+        value, ok = QInputDialog.getInt(
+            self, "Download connections", "Maximum parallel connections per file:",
+            self.max_connections, 1, 32, 1
+        )
+        if ok:
+            self.max_connections = value
+            self.settings.setValue("max_connections", value)
+            self.statusBar().showMessage(f"New downloads will use up to {value} connections", 5000)
+
+    def toggle_clipboard_monitor(self):
+        self.clipboard_monitoring = not self.clipboard_monitoring
+        clipboard = QApplication.clipboard()
+        if self.clipboard_monitoring:
+            clipboard.dataChanged.connect(self.on_clipboard_changed)
+            self.statusBar().showMessage("Clipboard URL monitoring enabled", 5000)
+        else:
+            try:
+                clipboard.dataChanged.disconnect(self.on_clipboard_changed)
+            except (RuntimeError, TypeError):
+                pass
+            self.statusBar().showMessage("Clipboard URL monitoring disabled", 5000)
+        for action in self.findChildren(QAction):
+            if action.text().startswith("Clipboard monitor:"):
+                action.setText("Clipboard monitor: On" if self.clipboard_monitoring else "Clipboard monitor: Off")
+
+    def on_clipboard_changed(self):
+        if not self.clipboard_monitoring:
+            return
+        text = QApplication.clipboard().text().strip()
+        parsed = urlparse(text)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return
+        if any(record.get("url") == text for record in self.records):
+            return
+        answer = QMessageBox.question(
+            self, "Download detected", f"Add this copied URL to downloads?\\n{text}",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            folder = str(Path.home() / "Downloads")
+            name = filename_from_url(text)
+            destination = str(Path(folder) / name)
+            record = {
+                "id": uuid.uuid4().hex, "url": text, "name": name,
+                "destination": destination, "status": "Queued",
+                "downloaded": 0, "total": None, "speed": 0, "category": _category(name),
+            }
+            self.records.insert(0, record)
+            self._save()
+            self.refresh()
+            self._start(record)
 
     def add_batch_downloads(self):
         urls, ok = QInputDialog.getMultiLineText(
