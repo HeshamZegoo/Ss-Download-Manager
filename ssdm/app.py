@@ -187,6 +187,13 @@ class MainWindow(QMainWindow):
         self.queue_timer.timeout.connect(self._schedule_queue)
         self.queue_timer.start()
 
+        # Browser extensions hand URLs to this inbox through the native host.
+        self.browser_inbox = data_dir() / "browser_inbox.jsonl"
+        self.browser_poll = QTimer(self)
+        self.browser_poll.setInterval(700)
+        self.browser_poll.timeout.connect(self._ingest_browser_inbox)
+        self.browser_poll.start()
+
     def closeEvent(self, event):
         if self.tray and self.tray.isVisible():
             self.hide()
@@ -219,6 +226,50 @@ class MainWindow(QMainWindow):
         temp = self.store.with_suffix(".tmp")
         temp.write_text(json.dumps(self.records, indent=2), encoding="utf-8")
         temp.replace(self.store)
+
+
+    def _ingest_browser_inbox(self):
+        if not self.browser_inbox.exists():
+            return
+        processing = self.browser_inbox.with_suffix(".processing")
+        try:
+            self.browser_inbox.replace(processing)
+        except OSError:
+            return
+        added = 0
+        try:
+            lines = processing.read_text(encoding="utf-8").splitlines()
+            for line in lines:
+                try:
+                    item = json.loads(line)
+                    url = str(item.get("url", "")).strip()
+                    parsed = urlparse(url)
+                    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+                        continue
+                    if any(r.get("url") == url for r in self.records):
+                        continue
+                    name = filename_from_url(url)
+                    folder = Path.home() / "Downloads"
+                    destination = str(folder / name)
+                    if any(r.get("destination") == destination for r in self.records):
+                        destination = str(folder / f"{Path(name).stem}-{uuid.uuid4().hex[:8]}{Path(name).suffix}")
+                    record = {
+                        "id": uuid.uuid4().hex, "url": url, "name": name,
+                        "destination": destination, "status": "Queued",
+                        "downloaded": 0, "total": None, "speed": 0,
+                        "category": _category(name), "source": item.get("source", "browser"),
+                    }
+                    self.records.insert(0, record)
+                    added += 1
+                except (ValueError, TypeError, AttributeError):
+                    continue
+        finally:
+            processing.unlink(missing_ok=True)
+        if added:
+            self._save()
+            self.refresh()
+            self.statusBar().showMessage(f"Added {added} link(s) from browser", 5000)
+            self._schedule_queue()
 
     def add_download(self):
         dialog = AddDialog(self)
