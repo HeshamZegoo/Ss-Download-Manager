@@ -15,7 +15,8 @@ A Windows-first desktop download manager inspired by IDM-style download tools.
 - Automatic file categories (video, audio, images, archives, documents, programs, other).
 - Choose destination folders and open completed files/folders.
 - SHA-256 calculation and optional comparison against a supplied checksum.
-- Real HTTP(S) PUT uploads with progress reporting; supports compatible WebDAV endpoints and pre-signed upload URLs.
+- Real HTTP(S) PUT uploads with progress reporting and cancellation; supports compatible WebDAV endpoints and pre-signed upload URLs.
+- Video grabber for supported sites using yt-dlp, with progress reporting and cancellation.
 - No application-imposed transfer speed cap by default.
 
 ## Run from source
@@ -41,7 +42,7 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 ## Still to implement
 
-- Browser extensions / browser integration and video extraction.
+- Browser extensions / browser integration and browser-captured links.
 - FTP/SFTP upload, upload queue/history, and resumable uploads.
 - Notifications, system tray/background mode, and polished settings/preferences.
 
