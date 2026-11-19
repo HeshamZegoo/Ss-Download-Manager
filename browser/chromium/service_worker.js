@@ -16,17 +16,19 @@ function sendUrl(url, source = "chromium", downloadId = null) {
   let replied = false;
   port.onMessage.addListener(reply => {
     replied = true;
-    if (reply?.ok) notify("Link sent to download queue.");
-    else notify(reply?.error || "Could not send link.", true);
+    if (reply?.ok) {
+      notify("Link sent to download queue.");
+      if (downloadId !== null) chrome.downloads.cancel(downloadId, () => void chrome.runtime.lastError);
+    } else {
+      notify(reply?.error || "Could not send link.", true);
+    }
     port.disconnect();
   });
   port.onDisconnect.addListener(() => {
     if (!replied) notify(chrome.runtime.lastError?.message || "Desktop bridge unavailable.", true);
   });
   port.postMessage({url, source});
-  // Native host persists the URL; cancel Chrome's copy immediately to prevent
-  // the browser and desktop manager downloading the same file in parallel.
-  if (downloadId !== null) chrome.downloads.cancel(downloadId, () => void chrome.runtime.lastError);
+  // Cancel the browser copy only after the native host confirms it persisted the URL.
 }
 chrome.runtime.onInstalled.addListener(() => {
   chrome.storage.local.set({ssdmActivatedAt: Date.now()});
