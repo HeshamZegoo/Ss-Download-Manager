@@ -410,7 +410,7 @@ class MainWindow(QMainWindow):
 
     def schedule_selected(self):
         record = self._selected()
-        if not record or record.get("status") in ("Downloading", "Completed"):
+        if not record or record.get("transfer_type") == "upload" or record.get("status") in ("Downloading", "Completed"):
             return
         dialog = QDialog(self)
         dialog.setWindowTitle("Schedule download")
@@ -888,7 +888,7 @@ class MainWindow(QMainWindow):
 
     def verify_selected(self):
         record = self._selected()
-        if not record or record.get("status") != "Completed":
+        if not record or record.get("transfer_type") == "upload" or record.get("status") != "Completed":
             QMessageBox.information(self, "SHA-256 verification", "Select a completed download first.")
             return
         path = Path(record["destination"])
