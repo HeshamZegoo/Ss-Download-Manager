@@ -1,14 +1,24 @@
 param(
   [Parameter(Mandatory=$true)][string]$InstallDir,
-  [Parameter(Mandatory=$true)][string]$ChromiumExtensionId
+  [Parameter(Mandatory=$true)][string[]]$ChromiumExtensionIds
 )
 $ErrorActionPreference = "Stop"
 $hostExe = Join-Path $InstallDir "ssdm-native-host.exe"
 if (!(Test-Path $hostExe)) { throw "Native host executable not found: $hostExe" }
-$template = Join-Path $PSScriptRoot "native-host/com.ssdownloadmanager.json.template"
-$manifest = Get-Content $template -Raw
-$manifest = $manifest.Replace("__INSTALL_DIR__", $InstallDir.Replace("", "\"))
-$manifest = $manifest.Replace("__CHROMIUM_EXTENSION_ID__", $ChromiumExtensionId)
+if ($ChromiumExtensionIds.Count -lt 1) { throw "Provide at least one Chromium extension ID." }
+$allowedOrigins = @()
+foreach ($id in $ChromiumExtensionIds) {
+  if ($id -notmatch '^[a-p]{32}$') { throw "Invalid Chromium extension ID: $id" }
+  $allowedOrigins += "chrome-extension://$id/"
+}
+$manifest = @{
+  name = "com.ssdownloadmanager"
+  description = "Ss Download Manager native messaging bridge"
+  path = $hostExe
+  type = "stdio"
+  allowed_origins = $allowedOrigins
+  allowed_extensions = @("ss-download-manager@heshamzegoo")
+} | ConvertTo-Json -Depth 5
 $manifestPath = Join-Path $InstallDir "com.ssdownloadmanager.json"
 Set-Content -Path $manifestPath -Value $manifest -Encoding UTF8
 $keys = @(
@@ -21,4 +31,4 @@ foreach ($key in $keys) {
   New-Item -Path $key -Force | Out-Null
   Set-Item -Path $key -Value $manifestPath
 }
-Write-Host "Native host registered. Install the matching extension from browser/chromium or browser/firefox."
+Write-Host "Native host registered for Chrome, Edge, Brave, and Firefox."
