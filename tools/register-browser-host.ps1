@@ -32,14 +32,26 @@ Ss Download Manager browser setup
 
 The native messaging bridge is already installed and registered.
 
-CHROME / EDGE / BRAVE:
-1. Open the browser's Extensions page.
+GOOGLE CHROME:
+1. Open chrome://extensions/
 2. Turn on Developer mode.
 3. Choose Load unpacked.
 4. Select this folder:
    $InstallDir\browser\chromium
 
-The Chromium extension ID is fixed in the package; the native bridge is pre-registered.
+BRAVE:
+1. Open brave://extensions/
+2. Turn on Developer mode.
+3. Choose Load unpacked.
+4. Select the SAME folder:
+   $InstallDir\browser\chromium
+
+The Chrome and Brave extension ID is fixed as:
+egoijdabioaaoapbipodjmlpikfjbejd
+
+The native messaging host is registered for both browsers. If you replace the
+extension files during an update, return to the Extensions page and press
+Reload for Ss Download Manager Integration. Keep the extension enabled.
 
 FIREFOX:
 1. Open about:debugging#/runtime/this-firefox
