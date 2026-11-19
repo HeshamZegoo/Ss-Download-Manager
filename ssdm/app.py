@@ -34,6 +34,7 @@ class JobSignals(QObject):
     progress = Signal(str, int, object, float)
     finished = Signal(str, str)
     failed = Signal(str, str)
+    paused = Signal(str)
 
 
 class AddDialog(QDialog):
@@ -81,6 +82,7 @@ class MainWindow(QMainWindow):
         self.signals.progress.connect(self.on_progress)
         self.signals.finished.connect(self.on_finished)
         self.signals.failed.connect(self.on_failed)
+        self.signals.paused.connect(self.on_paused)
         self.store = data_dir() / "downloads.json"
         self._load()
 
@@ -183,6 +185,7 @@ class MainWindow(QMainWindow):
             lambda done, total, speed, jid=job_id: self.signals.progress.emit(jid, done, total, speed),
             lambda path, jid=job_id: self.signals.finished.emit(jid, path),
             lambda error, jid=job_id: self.signals.failed.emit(jid, error),
+            lambda jid=job_id: self.signals.paused.emit(jid),
         )
         self.jobs[job_id] = job
         self._save()
@@ -248,6 +251,15 @@ class MainWindow(QMainWindow):
         if not record:
             return
         record["downloaded"], record["total"], record["speed"] = done, total, speed
+        self.refresh()
+
+    def on_paused(self, job_id):
+        self.jobs.pop(job_id, None)
+        record = self._by_id(job_id)
+        if record:
+            record['status'] = 'Paused'
+            record['speed'] = 0
+        self._save()
         self.refresh()
 
     def on_finished(self, job_id, path):
