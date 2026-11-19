@@ -68,6 +68,11 @@ jobs:
           --collect-all PySide6.QtWebEngineCore
           --collect-all PySide6.QtWebEngineWidgets
           --collect-all PySide6.QtWebChannel
+          --exclude-module tkinter
+          --exclude-module test
+          --exclude-module unittest
+          --exclude-module pydoc
+          --exclude-module doctest
           --add-data "ssdm/ui/idm-modern.html;ssdm/ui"
           --add-data "ssdm/assets/SsDownloadManager.png;ssdm/assets"
           main.py
