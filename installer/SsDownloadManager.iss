@@ -29,11 +29,11 @@ Source: "..\browser\firefox\*"; DestDir: "{app}\browser\firefox"; Flags: ignorev
 Source: "..\tools\register-browser-host.ps1"; DestDir: "{app}\tools"; Flags: ignoreversion
 Source: "..\COPYRIGHT.txt"; DestDir: "{app}"; Flags: ignoreversion
 [Registry]
-Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SsDownloadManager"; ValueData: """{app}\SsDownloadManager.exe"" --background"; Tasks: startup; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "SsDownloadManager"; ValueData: """{app}\SsDownloadManager.exe"" --background"; Flags: uninsdeletevalue
 [Icons]
 Name: "{group}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"
 Name: "{autodesktop}\Ss Download Manager"; Filename: "{app}\SsDownloadManager.exe"; Tasks: desktopicon
 Name: "{group}\Browser setup instructions"; Filename: "{app}\Browser-Setup.txt"
 [Run]
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\tools\register-browser-host.ps1"""; StatusMsg: "Registering browser integration..."; Flags: runhidden waituntilterminated; Tasks: browserhelper
-Filename: "{app}\SsDownloadManager.exe"; Description: "Launch Ss Download Manager"; Flags: postinstall nowait skipifsilent
+Filename: "{app}\SsDownloadManager.exe"; Parameters: "--background"; Description: "Start Ss Download Manager in the system tray"; Flags: postinstall nowait skipifsilent
