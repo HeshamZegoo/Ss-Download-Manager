@@ -59,6 +59,9 @@ jobs:
           --collect-all paramiko
           --collect-all requests
           --collect-all certifi
+          --collect-all PySide6.QtWebEngineCore
+          --collect-all PySide6.QtWebEngineWidgets
+          --add-data "ssdm/ui/idm-modern.html;ssdm/ui"
           main.py
       - name: Build browser native-messaging host
         run: pyinstaller --noconfirm --onefile --console --name ssdm-native-host ssdm/native_host.py
