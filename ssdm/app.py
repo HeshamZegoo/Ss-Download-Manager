@@ -275,6 +275,11 @@ class TorrentWindow(QDialog):
         if not ok:
             return
         self.manager.set_limits(active, down, up)
+        owner = self.parent()
+        if owner is not None and hasattr(owner, "settings"):
+            owner.settings.setValue("torrent_max_active", active)
+            owner.settings.setValue("torrent_download_limit_kib", down)
+            owner.settings.setValue("torrent_upload_limit_kib", up)
         self.status.setText(
             f"Queue: {active} active · Download: {down or 'Unlimited'} KiB/s · "
             f"Upload: {up or 'Unlimited'} KiB/s"
