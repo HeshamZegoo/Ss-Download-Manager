@@ -93,6 +93,14 @@ class HtmlBridge(QObject):
         super().__init__(window)
         self.window = window
 
+    @Slot(result=str)
+    def getGrabberFolder(self):
+        return str(self.window.grabber_download_dir if self.window.grabber_remember_location else self.window.default_download_dir)
+
+    @Slot(result=bool)
+    def getGrabberRememberLocation(self):
+        return bool(self.window.grabber_remember_location)
+
     @Slot(str, result=str)
     def chooseDownloadFolder(self, current):
         return self.window.choose_grabber_folder(current)
@@ -306,7 +314,9 @@ class MainWindow(QMainWindow):
         folder = self.grabber_download_dir if self.grabber_remember_location else str(self.default_download_dir)
         self.web_view.page().runJavaScript("window.ssdmSetGrabberFolder(" + json.dumps(str(folder)) + ");")
         escaped = json.dumps("\n".join(urls), ensure_ascii=False)
-        self.web_view.page().runJavaScript(f"if(window.ssdmOpenGrabber) window.ssdmOpenGrabber({escaped});")
+        self.web_view.page().runJavaScript(
+            "if(window.ssdmOpenGrabber) window.ssdmOpenGrabber(" + escaped + ");"
+        )
         self.showNormal()
         self.raise_()
         self.activateWindow()
@@ -326,12 +336,14 @@ class MainWindow(QMainWindow):
                 urls.append(url)
         if not urls:
             QMessageBox.warning(self, "Link Grabber", "No valid HTTP or HTTPS links were found.")
+            self._grabber_open = False
             return
         target = Path(folder).expanduser() if folder.strip() else self.default_download_dir
         try:
             target.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
             QMessageBox.warning(self, "Link Grabber", f"Cannot use this folder: {exc}")
+            self._grabber_open = False
             return
         if remember:
             self.grabber_remember_location = True
