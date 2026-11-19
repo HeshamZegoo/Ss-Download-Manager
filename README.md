@@ -44,8 +44,9 @@ GitHub Actions currently runs validation only. Windows EXE packaging is delibera
 
 - Browser extensions / browser integration and browser-captured links.
 - FTP/SFTP upload, upload queue/history, and resumable uploads.
-- Notifications, system tray/background mode, and polished settings/preferences.
+- Browser extension/native-messaging integration and polished settings/preferences.
+- Resumable uploads and richer upload queue controls.
 
 ## Limitations
 
-Resume depends on the server supporting byte ranges and keeping the same resource. HTTP upload requires a destination service that accepts PUT. Actual transfer speed depends on the user's network, remote server, and network path; the application does not bypass authentication, host policies, or ISP limits.
+Resume depends on the server supporting byte ranges and keeping the same resource. Scheduled tasks run only while the application remains running. HTTP upload requires a destination service that accepts PUT. Actual transfer speed depends on the user's network, remote server, and network path; the application does not bypass authentication, host policies, or ISP limits.
